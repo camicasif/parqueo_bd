@@ -81,7 +81,7 @@ DO $$
         vehiculos_por_usuario INT;
         bus_asignado BOOLEAN := FALSE;
     BEGIN
-        FOR i IN 3..502 LOOP
+        FOR i IN 1..500 LOOP
                 -- Obtener tipo de usuario
                 SELECT id_tipo_usuario INTO v_id_tipo_usuario FROM usuario WHERE id_usuario = i;
 
