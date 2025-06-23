@@ -14,9 +14,9 @@ BEGIN
            vep.fecha_hora_salida,
            vep.id_espacio_parqueo,
            sp.nombre_seccion
-    FROM vehiculo_espacio_parqueo vep
-    JOIN espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
-    JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
+    FROM core.registro_parqueo vep
+    JOIN core.espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
+    JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE vep.placa = p_placa
       AND vep.fecha_hora_ingreso BETWEEN p_inicio AND p_fin;
 END;
@@ -36,9 +36,9 @@ BEGIN
     SELECT sp.id_seccion,
            sp.nombre_seccion,
            COUNT(*) AS total_ocupaciones
-    FROM vehiculo_espacio_parqueo vep
-    JOIN espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
-    JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
+    FROM core.registro_parqueo vep
+    JOIN core.espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
+    JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE DATE(vep.fecha_hora_ingreso) = p_fecha
     GROUP BY sp.id_seccion, sp.nombre_seccion;
 END;
@@ -54,7 +54,7 @@ DECLARE
 BEGIN
     SELECT SUM(vep.fecha_hora_salida - vep.fecha_hora_ingreso)
     INTO total_tiempo
-    FROM vehiculo_espacio_parqueo vep
+    FROM core.registro_parqueo vep
     WHERE vep.placa = p_placa
       AND vep.fecha_hora_salida IS NOT NULL;
 
@@ -78,7 +78,7 @@ BEGIN
            vep.fecha_hora_ingreso,
            vep.fecha_hora_salida,
            vep.id_espacio_parqueo
-    FROM vehiculo_espacio_parqueo vep
+    FROM core.registro_parqueo vep
     WHERE DATE(vep.fecha_hora_ingreso) = p_fecha
        OR (vep.fecha_hora_salida IS NOT NULL AND DATE(vep.fecha_hora_salida) = p_fecha);
 END;
@@ -94,7 +94,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*)
     INTO total_ingresos
-    FROM vehiculo_espacio_parqueo
+    FROM core.registro_parqueo
     WHERE fecha_hora_ingreso >= p_inicio_semana
       AND fecha_hora_ingreso < p_inicio_semana + INTERVAL '7 days';
     RETURN total_ingresos;
@@ -106,7 +106,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION resetear_contrasena_usuario(p_id_usuario INTEGER, p_nueva_contrasena VARCHAR)
 RETURNS VOID AS $$
 BEGIN
-    UPDATE usuario
+    UPDATE core.usuario
     SET contrasena = p_nueva_contrasena
     WHERE id_usuario = p_id_usuario;
 END;
@@ -118,7 +118,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION eliminar_registros_vehiculo(p_placa VARCHAR)
 RETURNS VOID AS $$
 BEGIN
-    DELETE FROM vehiculo_espacio_parqueo
+    DELETE FROM core.registro_parqueo
     WHERE placa = p_placa;
 END;
 $$ LANGUAGE plpgsql;
@@ -131,7 +131,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*)
     INTO total_vehiculos
-    FROM vehiculo
+    FROM core.vehiculo
     WHERE id_usuario = p_id_usuario;
 
     RETURN total_vehiculos > 1;
@@ -143,7 +143,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION reasignar_vehiculo(p_placa VARCHAR, p_nuevo_id_usuario INTEGER)
 RETURNS VOID AS $$
 BEGIN
-    UPDATE vehiculo
+    UPDATE core.vehiculo
     SET id_usuario = p_nuevo_id_usuario
     WHERE placa = p_placa;
 END;
@@ -171,12 +171,12 @@ BEGIN
            vep.fecha_hora_salida,
            vep.id_espacio_parqueo,
            sp.nombre_seccion
-    FROM vehiculo v
-    LEFT JOIN usuario u ON u.id_usuario = v.id_usuario
-    LEFT JOIN tipo_vehiculo tv ON tv.id_tipo_vehiculo = v.id_tipo_vehiculo
-    LEFT JOIN vehiculo_espacio_parqueo vep ON vep.placa = v.placa
-    LEFT JOIN espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
-    LEFT JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
+    FROM core.vehiculo v
+    LEFT JOIN core.usuario u ON u.id_usuario = v.id_usuario
+    LEFT JOIN config.tipo_vehiculo tv ON tv.id_tipo_vehiculo = v.id_tipo_vehiculo
+    LEFT JOIN core.registro_parqueo vep ON vep.placa = v.placa
+    LEFT JOIN core.espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
+    LEFT JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE v.placa = p_placa
     ORDER BY vep.fecha_hora_ingreso;
 END;
@@ -187,11 +187,11 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION registrar_ingreso_vehiculo(p_placa VARCHAR, p_id_espacio INTEGER)
 RETURNS VOID AS $$
 BEGIN
-    INSERT INTO vehiculo_espacio_parqueo (fecha_hora_ingreso, placa, id_espacio_parqueo)
+    INSERT INTO core.registro_parqueo (fecha_hora_ingreso, placa, id_espacio_parqueo)
     VALUES (NOW(), p_placa, p_id_espacio);
 
-    UPDATE espacio_parqueo
-    SET estado = 1
+    UPDATE core.espacio_parqueo
+    SET id_estado = 3
     WHERE id_espacio_parqueo = p_id_espacio;
 END;
 $$ LANGUAGE plpgsql;
@@ -202,14 +202,14 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION registrar_salida_vehiculo(p_placa VARCHAR, p_id_espacio INTEGER)
 RETURNS VOID AS $$
 BEGIN
-    UPDATE vehiculo_espacio_parqueo
+    UPDATE core.registro_parqueo
     SET fecha_hora_salida = NOW()
-    WHERE placa = p_placa
+    WHERE registro_parqueo.placa = p_placa
       AND id_espacio_parqueo = p_id_espacio
       AND fecha_hora_salida IS NULL;
 
-    UPDATE espacio_parqueo
-    SET estado = 0
+    UPDATE core.espacio_parqueo
+    SET id_estado = 1
     WHERE id_espacio_parqueo = p_id_espacio;
 END;
 $$ LANGUAGE plpgsql;
@@ -220,8 +220,8 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION actualizar_estado_espacio(p_id_espacio INTEGER, p_estado INTEGER)
 RETURNS VOID AS $$
 BEGIN
-    UPDATE espacio_parqueo
-    SET estado = p_estado
+    UPDATE core.espacio_parqueo
+    SET id_estado = p_estado
     WHERE id_espacio_parqueo = p_id_espacio;
 END;
 $$ LANGUAGE plpgsql;
@@ -234,9 +234,9 @@ RETURNS TABLE (
 BEGIN
     RETURN QUERY
     SELECT id_espacio_parqueo
-    FROM espacio_parqueo
+    FROM core.espacio_parqueo
     WHERE id_seccion = p_id_seccion
-      AND estado = 0;
+      AND id_estado = 1;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -249,12 +249,12 @@ DECLARE
 BEGIN
     SELECT ep.id_espacio_parqueo
     INTO v_id_espacio
-    FROM espacio_parqueo ep
-    JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
-    JOIN tipo_vehiculo_seccion_parqueo tvsp ON tvsp.id_seccion = sp.id_seccion
+    FROM core.espacio_parqueo ep
+    JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
+    JOIN config.tipo_vehiculo_seccion tvsp ON tvsp.id_seccion = sp.id_seccion
     WHERE tvsp.id_tipo_vehiculo = p_id_tipo_vehiculo
       AND sp.id_tipo_usuario = p_id_tipo_usuario
-      AND ep.estado = 0
+      AND ep.id_estado = 1
     LIMIT 1;
 
     RETURN v_id_espacio;
