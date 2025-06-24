@@ -3,6 +3,8 @@ CREATE INDEX idx_registro_parqueo_rango_tiempo
 
 TRUNCATE TABLE core.registro_parqueo RESTART IDENTITY CASCADE;
 
+DROP TRIGGER IF EXISTS trg_validar_y_loggear_vehiculo_espacio ON core.registro_parqueo;
+
 CREATE OR REPLACE FUNCTION generar_registros_parqueo_por_rango(fecha_inicio DATE, fecha_fin DATE)
     RETURNS VOID AS $$
 DECLARE
