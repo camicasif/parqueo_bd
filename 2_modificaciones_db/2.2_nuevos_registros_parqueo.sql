@@ -254,3 +254,4 @@ FROM core.registro_parqueo r1
                   AND r1.fecha_hora_salida > r2.fecha_hora_ingreso
 WHERE r1.id_registro < r2.id_registro
 ORDER BY r1.id_espacio_parqueo, r1.fecha_hora_ingreso;
+
