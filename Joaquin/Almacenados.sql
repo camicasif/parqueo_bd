@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE registrar_usuario(
+CREATE OR REPLACE function registrar_usuario(
     p_codigo_universitario INTEGER,
     p_telefono_contacto VARCHAR,
     p_contrasena VARCHAR,
@@ -33,7 +33,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE actualizar_usuario(
+CREATE OR REPLACE function actualizar_usuario(
     p_id_usuario INTEGER,
     p_codigo_universitario INTEGER,
     p_telefono_contacto VARCHAR,
@@ -65,7 +65,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE eliminar_usuario(
+CREATE OR REPLACE function eliminar_usuario(
     p_id_usuario INTEGER
 )
 LANGUAGE plpgsql
@@ -85,7 +85,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE listar_usuarios_por_tipo()
+CREATE OR REPLACE function listar_usuarios_por_tipo()
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -108,7 +108,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE validar_login(
+CREATE OR REPLACE function validar_login(
     p_codigo_universitario INTEGER,
     p_contrasena VARCHAR
 )
@@ -137,11 +137,12 @@ $$;
 ---------------------------------------------------------
 
 
-CREATE OR REPLACE PROCEDURE registrar_vehiculo(
+CREATE OR REPLACE function registrar_vehiculo(
     p_placa VARCHAR,
     p_id_tipo_vehiculo INTEGER,
     p_id_usuario INTEGER
 )
+    RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -159,7 +160,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE actualizar_vehiculo(
+CREATE OR REPLACE function actualizar_vehiculo(
     p_codigo_sticker INTEGER,
     p_nueva_placa VARCHAR,
     p_nuevo_tipo INTEGER
@@ -185,7 +186,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE eliminar_vehiculo_por_placa(
+CREATE OR REPLACE function eliminar_vehiculo_por_placa(
     p_placa VARCHAR
 )
 LANGUAGE plpgsql
@@ -205,7 +206,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE listar_vehiculos_por_usuario(
+CREATE OR REPLACE function listar_vehiculos_por_usuario(
     p_id_usuario INTEGER
 )
 LANGUAGE plpgsql
@@ -230,7 +231,7 @@ EXCEPTION
 END;
 $$;
 
-CREATE OR REPLACE PROCEDURE verificar_vehiculo_por_placa(
+CREATE OR REPLACE function verificar_vehiculo_por_placa(
     p_placa VARCHAR
 )
 LANGUAGE plpgsql

@@ -53,7 +53,7 @@ DO $$
                     tipo_usuario_id := 1;  -- Estudiante
                 END IF;
 
-                INSERT INTO usuario (
+                INSERT INTO core.usuario (
                     codigo_universitario,
                     telefono_contacto,
                     contrasena,
@@ -83,7 +83,7 @@ DO $$
     BEGIN
         FOR i IN 1..500 LOOP
                 -- Obtener tipo de usuario
-                SELECT id_tipo_usuario INTO v_id_tipo_usuario FROM usuario WHERE id_usuario = i;
+                SELECT id_tipo_usuario INTO v_id_tipo_usuario FROM core.usuario WHERE id_usuario = i;
 
                 -- Determinar cuántos vehículos debe tener
                 IF i <= 100 THEN
@@ -124,7 +124,7 @@ DO $$
                         END IF;
 
                         -- Insertar vehículo
-                        INSERT INTO vehiculo (
+                        INSERT INTO core.vehiculo (
                              placa, id_tipo_vehiculo, id_usuario
                         ) VALUES (
                                      'ABC' || LPAD((i::TEXT || j::TEXT), 4, '0'),
