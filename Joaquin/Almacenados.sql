@@ -137,7 +137,27 @@ $$;
 ---------------------------------------------------------
 
 
+CREATE OR REPLACE PROCEDURE registrar_vehiculo(
+    p_placa VARCHAR,
+    p_id_tipo_vehiculo INTEGER,
+    p_id_usuario INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO core.vehiculo (placa, id_tipo_vehiculo, id_usuario)
+    VALUES (p_placa, p_id_tipo_vehiculo, p_id_usuario);
 
+    RAISE NOTICE 'Vehículo con placa % registrado bien.', p_placa;
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE NOTICE 'Ya existe un vehículo con esa placa.';
+    WHEN foreign_key_violation THEN
+        RAISE NOTICE 'Usuario o tipo de vehículo no válido.';
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error al registrar vehículo: %', SQLERRM;
+END;
+$$;
 
 CREATE OR REPLACE PROCEDURE actualizar_vehiculo(
     p_codigo_sticker INTEGER,
