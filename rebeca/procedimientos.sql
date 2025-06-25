@@ -15,8 +15,8 @@ BEGIN
            vep.id_espacio_parqueo,
            sp.nombre_seccion
     FROM core.registro_parqueo vep
-    JOIN espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
-    JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
+    JOIN core.espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
+    JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE vep.placa = p_placa
       AND vep.fecha_hora_ingreso BETWEEN p_inicio AND p_fin;
 END;
@@ -47,8 +47,8 @@ BEGIN
            sp.nombre_seccion,
            COUNT(*) AS total_ocupaciones
     FROM core.registro_parqueo vep
-    JOIN espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
-    JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
+    JOIN core.espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
+    JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE DATE(vep.fecha_hora_ingreso) = p_fecha
     GROUP BY sp.id_seccion, sp.nombre_seccion;
 END;

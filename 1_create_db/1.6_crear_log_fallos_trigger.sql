@@ -92,18 +92,18 @@ DECLARE
     v_usuario_id INT;
 BEGIN
     -- Obtener estado del espacio
-    SELECT ep.id_estado
+    SELECT ep.estado
     INTO v_estado
     FROM core.espacio_parqueo ep
     WHERE ep.id_espacio_parqueo = p_id_espacio;
 
     -- Si está disponible, no hay conflicto
-    IF v_estado = 1 THEN
+    IF v_estado = 'Disponible' THEN
         RETURN FALSE;
     END IF;
 
     -- Si está ocupado (estado 3), hay conflicto
-    IF v_estado = 3 THEN
+    IF v_estado = 'Ocupado' THEN
         RAISE NOTICE 'ERROR: El espacio esta ocupado';
         RETURN TRUE;
     END IF;
@@ -114,14 +114,14 @@ BEGIN
     WHERE placa = p_placa;
 
     -- Si está reservado, verificar si la reserva le pertenece
-    IF v_estado = 2 THEN
+    IF v_estado = 'Reservado' THEN
         -- Buscar reserva del espacio que sea del mismo usuario y coincida con el rango de tiempo
         IF EXISTS (
             SELECT 1
             FROM core.reserva_espacio r
             WHERE r.id_espacio = p_id_espacio
               AND r.id_usuario = v_usuario_id
-              AND r.estado = 'pendiente'
+              AND r.estado = 'aprobada'
         ) THEN
             RETURN FALSE; -- La reserva le pertenece
         ELSE
