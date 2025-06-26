@@ -9,7 +9,7 @@ $$
 BEGIN
 UPDATE seccion_parqueo
 SET id_tipo_usuario = p_id_tipo_usuario
-WHERE id_seccion = p_id_seccion;
+WHERE id_seccion = p_id_seccion AND eliminado = FALSE;
 END;
 $$;
 
@@ -40,6 +40,7 @@ BEGIN
         SELECT 1 FROM tipo_vehiculo_seccion
         WHERE id_tipo_vehiculo = p_id_tipo_vehiculo
           AND id_seccion = p_id_seccion
+          AND eliminado = FALSE
     ) THEN
 SELECT 'Válido' AS resultado;
 ELSE
@@ -59,7 +60,7 @@ BEGIN
 SELECT sp.id_seccion, sp.nombre_seccion
 FROM tipo_vehiculo_seccion tvs
          JOIN seccion_parqueo sp ON tvs.id_seccion = sp.id_seccion
-WHERE tvs.id_tipo_vehiculo = p_id_tipo_vehiculo;
+WHERE tvs.id_tipo_vehiculo = p_id_tipo_vehiculo AND eliminado = FALSE;
 END;
 $$;
 
@@ -74,47 +75,101 @@ BEGIN
 SELECT tv.id_tipo_vehiculo, tv.nombre_tipo_vehiculo
 FROM tipo_vehiculo_seccion tvs
          JOIN tipo_vehiculo tv ON tv.id_tipo_vehiculo = tvs.id_tipo_vehiculo
-WHERE tvs.id_seccion = p_id_seccion;
+WHERE tvs.id_seccion = p_id_seccion AND tv.eliminado = FALSE;
 END;
 $$;
 
-CREATE PROCEDURE resetear_contrasena_usuario(
+--Resetear la contraseña de un usuario
+CREATE OR REPLACE PROCEDURE resetear_contrasena_usuario(
     IN p_id_usuario INT,
     IN p_contrasena_actual VARCHAR(100),
     IN p_nueva_contrasena VARCHAR(100)
 )
-    language plpgsql
-as
+    LANGUAGE plpgsql
+AS
 $$
 DECLARE
 v_contrasena VARCHAR(100);
     v_user_exists BOOLEAN;
+    v_datos_antes JSONB;
+    v_datos_despues JSONB;
 BEGIN
+    -- Validar contraseña nueva
     IF p_nueva_contrasena IS NULL OR LENGTH(TRIM(p_nueva_contrasena)) < 8 THEN
+        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+        VALUES (
+                   'usuario',
+                   p_id_usuario::TEXT,
+                   'UPDATE',
+                   NULL,
+                   NULL,
+                   CURRENT_USER
+               );
         RAISE EXCEPTION 'La nueva contraseña debe tener al menos 8 caracteres';
 END IF;
 
+    -- Verificar si el usuario existe
 SELECT EXISTS (
     SELECT 1 FROM usuario WHERE id_usuario = p_id_usuario
 ) INTO v_user_exists;
 
 IF NOT v_user_exists THEN
+        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+        VALUES (
+                   'usuario',
+                   p_id_usuario::TEXT,
+                   'UPDATE',
+                   NULL,
+                   NULL,
+                   CURRENT_USER
+               );
         RAISE EXCEPTION 'Usuario no encontrado';
 END IF;
 
+    -- Obtener la contraseña actual
 SELECT contrasena INTO v_contrasena
 FROM usuario
 WHERE id_usuario = p_id_usuario;
 
+-- Comparar con la actual
 IF v_contrasena = p_contrasena_actual THEN
+        -- Datos antes y después para el log
+        v_datos_antes := jsonb_build_object('contrasena', v_contrasena);
+        v_datos_despues := jsonb_build_object('contrasena', p_nueva_contrasena);
+
+        -- Actualizar contraseña
 UPDATE usuario
 SET contrasena = p_nueva_contrasena
-WHERE id_usuario = p_id_usuario;
+WHERE id_usuario = p_id_usuario
+  AND eliminado = FALSE;
+
+-- Insertar en log
+INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+VALUES (
+           'usuario',
+           p_id_usuario::TEXT,
+           'UPDATE',
+           v_datos_antes,
+           v_datos_despues,
+           CURRENT_USER
+       );
 ELSE
-        RAISE EXCEPTION 'Contraseña actual incorrecta';
+        -- Contraseña incorrecta, insertar log
+        v_datos_antes := jsonb_build_object('contrasena', v_contrasena);
+INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+VALUES (
+           'usuario',
+           p_id_usuario::TEXT,
+           'UPDATE',
+           v_datos_antes,
+           NULL,
+           CURRENT_USER
+       );
+RAISE EXCEPTION 'Contraseña actual incorrecta';
 END IF;
 END;
 $$;
+
 
 --Eliminar todos los registros de parqueo de un vehículo específico
 CREATE PROCEDURE eliminar_registros_parqueo(
@@ -124,7 +179,7 @@ CREATE PROCEDURE eliminar_registros_parqueo(
 as
 $$
 BEGIN
-DELETE FROM registro_parqueo
+UPDATE registro_parqueo set eliminado = TRUE
 WHERE placa = p_placa;
 END;
 $$;
@@ -139,7 +194,8 @@ $$
 BEGIN
 SELECT COUNT(*) AS cantidad
 FROM vehiculo
-WHERE id_usuario = p_id_usuario;
+WHERE id_usuario = p_id_usuario
+  AND eliminado = FALSE;
 END;
 $$;
 
@@ -154,7 +210,8 @@ $$
 BEGIN
 UPDATE vehiculo
 SET id_usuario = p_nuevo_id_usuario
-WHERE placa = p_placa;
+WHERE placa = p_placa
+  AND eliminado = FALSE;
 END;
 $$;
 
@@ -181,6 +238,7 @@ FROM vehiculo v
          LEFT JOIN registro_parqueo rp ON v.placa = rp.placa
          LEFT JOIN espacio_parqueo ep ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
          LEFT JOIN seccion_parqueo sp ON ep.id_seccion = sp.id_seccion
-WHERE v.placa = p_placa;
+WHERE v.placa = p_placa
+  AND v.eliminado = FALSE;
 END;
 $$;
