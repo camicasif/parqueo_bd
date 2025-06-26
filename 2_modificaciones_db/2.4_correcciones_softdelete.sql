@@ -8,9 +8,6 @@ CREATE INDEX idx_usuario_eliminado ON core.usuario(eliminado);
 ALTER TABLE core.vehiculo
     ADD COLUMN eliminado BOOLEAN DEFAULT FALSE;
 
-CREATE INDEX idx_vehiculo_eliminado ON core.vehiculo(eliminado);
--- Eliminar restricción única anterior si existe
-ALTER TABLE core.vehiculo DROP CONSTRAINT IF EXISTS vehiculo_placa_key;
 
 -- Crear índice único solo para placas de vehículos no eliminados
 CREATE UNIQUE INDEX uq_vehiculo_placa_activa ON core.vehiculo (placa)
