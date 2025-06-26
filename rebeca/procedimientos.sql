@@ -1,14 +1,36 @@
---PROCESOS ALMACENADOS DE CONSULTAS Y REPORTES
--- 1. Reporte de historial de parqueo de un vehículo por rango de fechas
+--FUNCIONES DE REPORTE
 
-CREATE OR REPLACE FUNCTION reporte_historial_vehiculo(p_placa VARCHAR, p_inicio TIMESTAMP, p_fin TIMESTAMP)
+
+
+-- 1. Reporte de historial de parqueo de un vehículo por rango de fechas
+CREATE OR REPLACE FUNCTION F_reporte_historial_vehiculo(
+    p_placa VARCHAR,
+    p_inicio TIMESTAMP,
+    p_fin TIMESTAMP
+)
 RETURNS TABLE (
     fecha_hora_ingreso TIMESTAMP,
     fecha_hora_salida TIMESTAMP,
     id_espacio_parqueo INTEGER,
     nombre_seccion VARCHAR
-) AS $$
+)
+AS $$
 BEGIN
+    -- Validación de parámetros nulos
+    IF p_placa IS NULL OR p_inicio IS NULL OR p_fin IS NULL THEN
+        RAISE EXCEPTION 'Los parámetros no pueden ser nulos';
+    END IF;
+
+    -- Validación del formato de placa: 3 letras + 4 dígitos
+    IF p_placa !~ '^[A-Za-z]{3}[0-9]{4}$' THEN
+        RAISE EXCEPTION 'La placa "%" no tiene el formato requerido (3 letras y 4 números)', p_placa;
+    END IF;
+
+    -- Validación de rango de fechas
+    IF p_inicio > p_fin THEN
+        RAISE EXCEPTION 'La fecha de inicio no puede ser mayor que la fecha fin';
+    END IF;
+
     RETURN QUERY
     SELECT vep.fecha_hora_ingreso,
            vep.fecha_hora_salida,
@@ -18,30 +40,52 @@ BEGIN
     JOIN core.espacio_parqueo ep ON ep.id_espacio_parqueo = vep.id_espacio_parqueo
     JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE vep.placa = p_placa
-      AND vep.fecha_hora_ingreso BETWEEN p_inicio AND p_fin;
+      AND (
+            (vep.fecha_hora_ingreso BETWEEN p_inicio AND p_fin)
+            OR (vep.fecha_hora_salida BETWEEN p_inicio AND p_fin)
+            OR (vep.fecha_hora_ingreso <= p_inicio AND (vep.fecha_hora_salida IS NULL OR vep.fecha_hora_salida >= p_fin))
+          );
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'Error en F_reporte_historial_vehiculo: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
-
-select * from vehiculo;
-
-SELECT *
-FROM reporte_historial_vehiculo(
-    'ABC0011',
-    '2024-06-01 00:00:00'::timestamp,
-    '2024-06-30 23:59:59'::timestamp
-);
-
 
 
 -- 2. Generar reporte de ocupación por sección y por día
 
-CREATE OR REPLACE FUNCTION reporte_ocupacion_por_seccion_por_dia(p_fecha DATE)
+CREATE OR REPLACE FUNCTION F_reporte_ocupacion_por_seccion_por_dia(p_fecha DATE)
 RETURNS TABLE (
     id_seccion INTEGER,
     nombre_seccion VARCHAR,
     total_ocupaciones BIGINT
 ) AS $$
 BEGIN
+    -- Validación 1: Fecha no puede ser nula
+    IF p_fecha IS NULL THEN
+        RAISE EXCEPTION 'La fecha proporcionada no puede ser nula';
+    END IF;
+
+    -- Validación 2: La fecha no puede estar en el futuro
+    IF p_fecha > CURRENT_DATE THEN
+        RAISE EXCEPTION 'La fecha proporcionada no puede estar en el futuro: %', p_fecha;
+    END IF;
+
+    -- Validación 3: La fecha no debe ser demasiado antigua (por ejemplo, más de 10 años)
+    IF p_fecha < CURRENT_DATE - INTERVAL '10 years' THEN
+        RAISE EXCEPTION 'La fecha proporcionada excede el límite histórico permitido: %', p_fecha;
+    END IF;
+
+    -- Validación 4: Verificar si hay registros en la fecha
+    IF NOT EXISTS (
+        SELECT 1
+        FROM core.registro_parqueo
+        WHERE DATE(fecha_hora_ingreso) = p_fecha
+    ) THEN
+        RAISE EXCEPTION 'No existen registros para la fecha proporcionada: %', p_fecha;
+    END IF;
+
+
     RETURN QUERY
     SELECT sp.id_seccion,
            sp.nombre_seccion,
@@ -51,32 +95,77 @@ BEGIN
     JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
     WHERE DATE(vep.fecha_hora_ingreso) = p_fecha
     GROUP BY sp.id_seccion, sp.nombre_seccion;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'Error inesperado en F_reporte_ocupacion_por_seccion_por_dia: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
 
 
-SELECT *
-FROM reporte_ocupacion_por_seccion_por_dia('2024-06-20');
 
 
 -- 3. Calcular tiempo total de permanencia de un vehículo en el parqueo
-
-CREATE OR REPLACE FUNCTION tiempo_total_permanencia(p_placa VARCHAR)
-RETURNS INTERVAL AS $$
+CREATE OR REPLACE FUNCTION F_tiempo_total_permanencia(p_placa VARCHAR)
+RETURNS VARCHAR AS $$
 DECLARE
     total_tiempo INTERVAL := '0';
+    dias INT;
+    horas INT;
+    minutos INT;
+    segundos INT;
 BEGIN
-    SELECT SUM(vep.fecha_hora_salida - vep.fecha_hora_ingreso)
+    -- Validación 1: Placa no puede ser nula ni vacía
+    IF p_placa IS NULL OR TRIM(p_placa) = '' THEN
+        RAISE EXCEPTION 'La placa proporcionada no puede ser nula o vacía.';
+    END IF;
+
+    -- Validación 2: Placa debe tener un formato válido (opcional, si aplica)
+    -- Por ejemplo: 3 letras y 3 números (AJX123)
+    IF p_placa !~ '^[A-Z]{3}[0-9]{4}$' THEN
+        RAISE NOTICE 'Advertencia: La placa % no sigue el formato estándar.', p_placa;
+        -- No se lanza excepción para permitir placas válidas con otro patrón si lo deseas
+    END IF;
+
+    -- Validación 3: Verificamos existencia de la placa en la base de datos
+    IF NOT EXISTS (
+        SELECT 1
+        FROM core.registro_parqueo
+        WHERE placa = p_placa
+    ) THEN
+        RAISE EXCEPTION 'La placa "%" no existe en los registros de estacionamiento.', p_placa;
+    END IF;
+
+    -- Cálculo del tiempo total solo con salidas válidas
+    SELECT COALESCE(SUM(vep.fecha_hora_salida - vep.fecha_hora_ingreso), INTERVAL '0')
     INTO total_tiempo
     FROM core.registro_parqueo vep
     WHERE vep.placa = p_placa
-      AND vep.fecha_hora_salida IS NOT NULL;
+      AND vep.fecha_hora_salida IS NOT NULL
+      AND vep.fecha_hora_ingreso IS NOT NULL
+      AND vep.fecha_hora_salida >= vep.fecha_hora_ingreso;
 
-    RETURN total_tiempo;
+    -- Validación 4: Si no hubo registros con ingreso/salida válidos
+    IF total_tiempo = INTERVAL '0' THEN
+        RETURN 'No se encontraron registros completos de permanencia para la placa "' || p_placa || '".';
+    END IF;
+
+    -- Extraemos los componentes del intervalo
+    dias := EXTRACT(DAY FROM total_tiempo);
+    horas := EXTRACT(HOUR FROM total_tiempo);
+    minutos := EXTRACT(MINUTE FROM total_tiempo);
+    segundos := EXTRACT(SECOND FROM total_tiempo);
+
+    RETURN dias || ' días, ' || horas || ' horas, ' || minutos || ' minutos y ' || segundos || ' segundos';
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE EXCEPTION 'Error en F_tiempo_total_permanencia: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT tiempo_total_permanencia('ABC2131') AS total_tiempo;
+
+
 
 
 
