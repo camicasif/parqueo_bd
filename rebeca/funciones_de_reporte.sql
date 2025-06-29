@@ -411,110 +411,13 @@ $$ LANGUAGE plpgsql;
 
 
 
---9. Listar espacios nunca usados.
-CREATE OR REPLACE FUNCTION F_listar_espacios_nunca_usados()
-RETURNS TABLE (
-    id_espacio_parqueo INTEGER,
-    estado estado_espacio,
-    id_seccion INTEGER
-) AS $$
-BEGIN
-    -- Validar que existan las tablas requeridas
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'core'
-          AND table_name = 'espacio_parqueo'
-    ) THEN
-        RAISE EXCEPTION 'La tabla core.espacio_parqueo no existe.';
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'core'
-          AND table_name = 'registro_parqueo'
-    ) THEN
-        RAISE EXCEPTION 'La tabla core.registro_parqueo no existe.';
-    END IF;
-
-    -- Validar si hay espacios registrados
-    IF NOT EXISTS (SELECT 1 FROM core.espacio_parqueo) THEN
-        RAISE NOTICE 'No existen espacios de parqueo registrados.';
-        RETURN;
-    END IF;
-
-    -- Retornar espacios que no tienen registros en registro_parqueo
-    RETURN QUERY
-    SELECT ep.id_espacio_parqueo,
-           ep.estado,
-           ep.id_seccion
-    FROM core.espacio_parqueo ep
-    LEFT JOIN core.registro_parqueo rp ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
-    WHERE rp.id_espacio_parqueo IS NULL
-    ORDER BY ep.id_espacio_parqueo;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE EXCEPTION 'Error inesperado: %', SQLERRM;
-END;
-$$ LANGUAGE plpgsql;
+--FUNCTION 9: HISTORIAL DE INGRESO  Y SALIDA POR USUARIO
+--FUNCTION 10: HISTORIAL DE INGRESO POR VEHICULO. (PLACA)
 
 
 
---10. Promedio de tiempo de permanencia por usuario.  --corregir
-CREATE OR REPLACE FUNCTION F_promedio_tiempo_permanencia_por_usuario(
-    p_user_id INTEGER
-)
-RETURNS TABLE (
-    id_usuario INTEGER,
-    nombre VARCHAR,
-    apellidos VARCHAR,
-    promedio_minutos NUMERIC(10,2)
-) AS $$
-DECLARE
-    v_msg TEXT;
-BEGIN
-    IF p_user_id IS NULL THEN
-        RAISE EXCEPTION 'El parámetro p_user_id no puede ser NULL.';
-    END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM core.usuario WHERE id_usuario = p_user_id) THEN
-        v_msg := 'No existe el usuario con id_usuario = ' || p_user_id::TEXT;
-        RAISE EXCEPTION '%', v_msg;
-    END IF;
 
-    IF NOT EXISTS (
-        SELECT 1
-        FROM core.registro_parqueo rp
-        JOIN core.vehiculo v ON v.placa = rp.placa
-        WHERE v.id_usuario = p_user_id
-          AND rp.fecha_hora_salida IS NOT NULL
-    ) THEN
-        v_msg := 'El usuario con id_usuario = ' || p_user_id::TEXT || ' no tiene registros con fecha_hora_salida.';
-        RAISE NOTICE '%', v_msg;
-        RETURN;
-    END IF;
-
-    RETURN QUERY
-    SELECT
-        u.id_usuario,
-        u.nombre,
-        u.apellidos,
-        AVG(EXTRACT(EPOCH FROM (rp.fecha_hora_salida - rp.fecha_hora_ingreso)) / 60) AS promedio_minutos
-    FROM core.usuario u
-    JOIN core.vehiculo v ON v.id_usuario = u.id_usuario
-    JOIN core.registro_parqueo rp ON rp.placa = v.placa
-    WHERE u.id_usuario = p_user_id
-      AND rp.fecha_hora_salida IS NOT NULL
-    GROUP BY u.id_usuario, u.nombre, u.apellidos;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        v_msg := 'Error inesperado: ' || SQLERRM;
-        RAISE EXCEPTION '%', v_msg;
-END;
-$$ LANGUAGE plpgsql;
 
 
 

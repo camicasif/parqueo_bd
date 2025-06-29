@@ -7,7 +7,7 @@ BEGIN
     INTO result
     FROM core.vehiculo v
              JOIN core.usuario u ON u.id_usuario = v.id_usuario
-    WHERE v.placa = p_placa;
+    WHERE v.placa = p_placa AND v.eliminado = false;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'El vehículo con placa % no existe.', p_placa;
@@ -26,11 +26,10 @@ BEGIN
     INTO result
     FROM core.espacio_parqueo ep
              JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
-    WHERE ep.id_espacio_parqueo = p_id_espacio;
+    WHERE ep.id_espacio_parqueo = p_id_espacio AND ep.eliminado = false AND sp.eliminado = false;
 
     IF NOT FOUND THEN
-        RAISE NOTICE 'Error: El espacio de parqueo % no existe.', p_id_espacio;
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: El espacio de parqueo % no existe.', p_id_espacio;
     END IF;
 
     RETURN result;
@@ -50,6 +49,7 @@ BEGIN
             FROM config.tipo_vehiculo_seccion
             WHERE id_seccion = p_id_seccion
               AND id_tipo_vehiculo = p_id_tipo_vehiculo
+              AND eliminado = false
         );
     ELSE
         -- Validar compatibilidad completa
@@ -60,6 +60,7 @@ BEGIN
             WHERE sp.id_seccion = p_id_seccion
               AND sp.id_tipo_usuario = p_id_tipo_usuario
               AND tvsp.id_tipo_vehiculo = p_id_tipo_vehiculo
+              AND tvsp.eliminado = false
         );
     END IF;
 END;
@@ -75,66 +76,58 @@ BEGIN
         SELECT 1
         FROM core.registro_parqueo rp
         WHERE rp.id_espacio_parqueo = p_id_espacio
+          AND eliminado = false
           AND rp.fecha_hora_ingreso < COALESCE(p_fin, rp.fecha_hora_salida)
           AND rp.fecha_hora_salida > p_inicio
     );
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION core.vehiculo_ya_estacionado(
+CREATE OR REPLACE FUNCTION core.vehiculo_ya_estacionado_en_otro_lugar(
     p_placa TEXT,
-    p_id_espacio INT,
     p_inicio TIMESTAMP,
-    p_fin TIMESTAMP
+    p_fin TIMESTAMP,
+    p_id_actual INT DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
-DECLARE
-    v_estado INT;
-    v_usuario_id INT;
 BEGIN
-    -- Obtener estado del espacio
-    SELECT ep.estado
-    INTO v_estado
-    FROM core.espacio_parqueo ep
-    WHERE ep.id_espacio_parqueo = p_id_espacio;
-
-    -- Si está disponible, no hay conflicto
-    IF v_estado = 'Disponible' THEN
-        RETURN FALSE;
-    END IF;
-
-    -- Si está ocupado (estado 3), hay conflicto
-    IF v_estado = 'Ocupado' THEN
-        RAISE NOTICE 'ERROR: El espacio esta ocupado';
-        RETURN TRUE;
-    END IF;
-    -- Obtener id del usuario del vehículo
-    SELECT id_usuario
-    INTO v_usuario_id
-    FROM core.vehiculo
-    WHERE placa = p_placa;
-
-    -- Si está reservado, verificar si la reserva le pertenece
-    IF v_estado = 'Reservado' THEN
-        -- Buscar reserva del espacio que sea del mismo usuario y coincida con el rango de tiempo
-        IF EXISTS (
-            SELECT 1
-            FROM core.reserva_espacio r
-            WHERE r.id_espacio = p_id_espacio
-              AND r.id_usuario = v_usuario_id
-              AND r.estado = 'aprobada'
-        ) THEN
-            RETURN FALSE; -- La reserva le pertenece
-        ELSE
-            RAISE NOTICE 'ERROR: El espacio esta reservado por otro usuario';
-            RETURN TRUE; -- Está reservado y no le pertenece
-        END IF;
-    END IF;
-
-    RETURN TRUE;
-
+    RETURN EXISTS (
+        SELECT 1
+        FROM core.registro_parqueo
+        WHERE placa = p_placa
+          AND eliminado = false
+          AND (p_id_actual IS NULL OR id_registro != p_id_actual)
+          AND fecha_hora_ingreso < COALESCE(p_fin, fecha_hora_salida)
+          AND fecha_hora_salida > p_inicio
+    );
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION core.validar_disponibilidad_espacio(
+    p_id_espacio INT,
+    p_id_usuario INT
+) RETURNS VOID AS $$
+DECLARE
+    v_estado TEXT;
+BEGIN
+    SELECT estado INTO v_estado
+    FROM core.espacio_parqueo
+    WHERE id_espacio_parqueo = p_id_espacio;
+
+    IF v_estado = 'Ocupado' THEN
+        RAISE EXCEPTION 'Error: El espacio ya está ocupado.';
+    ELSIF v_estado = 'Reservado' THEN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM core.reserva_espacio
+            WHERE id_espacio = p_id_espacio
+              AND id_usuario = p_id_usuario
+              AND estado = 'aprobada'
+        ) THEN
+            RAISE EXCEPTION 'Error: El espacio está reservado por otro usuario.';
+        END IF;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION core.validar_y_loggear_vehiculo_espacio()
     RETURNS TRIGGER AS $$
@@ -161,23 +154,28 @@ BEGIN
         VALUES (v_usuario.id_usuario, NEW.placa, DATE(NEW.fecha_hora_ingreso),
                 NEW.fecha_hora_ingreso::time, COALESCE(NEW.fecha_hora_salida::time, NULL),
                 'Incompatibilidad entre usuario, vehículo y sección');
-        RAISE NOTICE 'Error: Incompatibilidad entre usuario, vehículo y sección';
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: Incompatibilidad entre usuario, vehículo y sección';
     END IF;
 
     -- Validar coherencia de horas
     IF NEW.fecha_hora_salida IS NOT NULL AND NEW.fecha_hora_ingreso >= NEW.fecha_hora_salida THEN
-        RAISE NOTICE 'Error: La hora de ingreso debe ser menor que la de salida.';
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: La hora de ingreso debe ser menor que la de salida.';
     END IF;
 
+    PERFORM core.validar_disponibilidad_espacio(NEW.id_espacio_parqueo, v_usuario.id_usuario);
+
     -- Validar que el mismo vehículo no esté en otro lugar
-    IF core.vehiculo_ya_estacionado(NEW.placa, NEW.id_espacio_parqueo, NEW.fecha_hora_ingreso, NEW.fecha_hora_salida) THEN
+    IF core.vehiculo_ya_estacionado_en_otro_lugar(NEW.placa, NEW.fecha_hora_ingreso, NEW.fecha_hora_salida, NEW.id_registro) THEN
         INSERT INTO log.log_fallos_parqueo (id_usuario, placa, fecha, hora_ingreso, hora_salida, motivo)
-        VALUES (v_usuario.id_usuario, NEW.placa, DATE(NEW.fecha_hora_ingreso),
-                NEW.fecha_hora_ingreso::time, COALESCE(NEW.fecha_hora_salida::time, NULL),
-                'Vehículo ya registrado en otro espacio en ese horario');
-        RETURN NULL;
+        VALUES (
+                   v_usuario.id_usuario,
+                   NEW.placa,
+                   DATE(NEW.fecha_hora_ingreso),
+                   NEW.fecha_hora_ingreso::time,
+                   COALESCE(NEW.fecha_hora_salida::time, NULL),
+                   'Vehículo ya registrado en otro espacio en ese horario'
+               );
+        RAISE EXCEPTION 'Error: Vehículo ya registrado en otro espacio en ese horario';
     END IF;
 
     RETURN NEW;
@@ -190,70 +188,7 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_validar_y_loggear_vehiculo_espacio ON core.registro_parqueo;
 
 CREATE TRIGGER trg_validar_y_loggear_vehiculo_espacio
-    BEFORE INSERT OR UPDATE ON core.registro_parqueo
+    BEFORE INSERT ON core.registro_parqueo
     FOR EACH ROW
 EXECUTE PROCEDURE core.validar_y_loggear_vehiculo_espacio();
 
-
-/************************************** PRUEBAS  ************************************************/
---
--- -- Usuario estudiante
--- INSERT INTO core.usuario (id_usuario, nombre, id_tipo_usuario)
--- VALUES (1001, 'Juan Pérez', 1);
---
--- -- Vehículo tipo moto
--- INSERT INTO core.vehiculo (placa, id_usuario, id_tipo_vehiculo)
--- VALUES ('ABC123', 1001, 1);
---
---
--- INSERT INTO core.registro_parqueo (
---     id_espacio_parqueo, placa, fecha_hora_ingreso, fecha_hora_salida
--- ) VALUES (
---              1, 'NOEXIST', NOW(), NOW() + INTERVAL '1 hour'
---          );
--- -- ERROR esperado: El vehículo con placa NOEXISTE no existe.
---
--- INSERT INTO core.registro_parqueo (
---     id_espacio_parqueo, placa, fecha_hora_ingreso, fecha_hora_salida
--- ) VALUES (
---              9999, 'ABC123', NOW(), NOW() + INTERVAL '1 hour'
---          );
--- -- ERROR esperado: El espacio de parqueo 9999 no existe.
---
--- -- Crear otro usuario y auto
--- INSERT INTO core.usuario (id_usuario, nombre, id_tipo_usuario)
--- VALUES (1002, 'Lucía Gómez', 1);  -- Estudiante
---
--- INSERT INTO core.vehiculo (placa, id_usuario, id_tipo_vehiculo)
--- VALUES ('CAR999', 1002, 2);  -- Auto
---
--- -- Insertar registro en sección 1 (solo acepta motos)
--- INSERT INTO core.registro_parqueo (
---     id_espacio_parqueo, placa, fecha_hora_ingreso, fecha_hora_salida
--- ) VALUES (
---              2, 'CAR999', NOW(), NOW() + INTERVAL '1 hour'
---          );
--- -- ERROR esperado: Incompatibilidad entre usuario, vehículo y sección
---
--- -- Crear usuarios
--- INSERT INTO core.usuario (nombre) VALUES ('Usuario1'); -- id_usuario=1
--- INSERT INTO core.usuario (nombre) VALUES ('Usuario2'); -- id_usuario=2
---
--- -- Crear vehículos
--- INSERT INTO core.vehiculo (placa, id_usuario,id_tipo_vehiculo) VALUES ('AAA111', 1,2);
--- INSERT INTO core.vehiculo (placa, id_usuario,id_tipo_vehiculo) VALUES ('BBB222', 2,2);
---
--- INSERT INTO core.reserva_espacio (id_espacio, id_usuario, estado, fecha_inicio, fecha_fin)
--- VALUES (12, 1, 'pendiente', NOW(), NOW() + INTERVAL '2 hours');
---
--- INSERT INTO core.registro_parqueo (id_espacio_parqueo, placa, fecha_hora_ingreso, fecha_hora_salida)
--- VALUES (12, 'AAA111', NOW(), NOW() + INTERVAL '1 hour');
--- -- Esperado: Inserción OK
--- INSERT INTO core.registro_parqueo (id_espacio_parqueo, placa, fecha_hora_ingreso, fecha_hora_salida)
--- VALUES (12, 'BBB222', NOW(), NOW() + INTERVAL '1 hour');
--- -- Esperado: Exception "Conflicto: el vehículo BBB222 no puede estacionar en el espacio 12"
-
--- HACER ESTOS TRIGGERS
--- TODO AL RESERVAR HAY QUE ACTUALIZAR EL ESTADO DEL ESPACIO PARA PONERLO EN RESERVADO
--- HAY QUE ACTUALIZAR LA RESERVA  A FINALIZADA CUANDO EL VEHICULO SE VAYA
--- HAY QUE ACTUALIZAR EL ESTADO DEL ESPACIO CUANDO EL VEHICULO ESTE OCUPADO Y A DESOCUPADO CUANDO EL VEHICULO SE VAYA

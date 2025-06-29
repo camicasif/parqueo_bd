@@ -5,10 +5,10 @@
         '2024-06-01 00:00:00'::timestamp,
         '2024-06-30 23:59:59'::timestamp
     );
-    SELECT * FROM F_reporte_historial_vehiculo('XYZ123'' OR 1=1 --', '2024-01-01', '2024-01-10');
+
 
     SELECT * FROM F_reporte_historial_vehiculo(
-        'ABC123',
+        'ABC1234',
         '2025-06-01 00:00:00',
         '2025-06-30 23:59:59'
     );
@@ -19,7 +19,7 @@
         '2025-06-25 23:59:59'
     );
     SELECT * FROM F_reporte_historial_vehiculo(
-        'ABC123',
+        'JEF0001',
         '2025-07-01 00:00:00',
         '2025-06-01 00:00:00'
     );
@@ -235,14 +235,12 @@
     FROM F_comparar_ocupacion_por_seccion('2024-06-24', '2024-06-25');
 
 
---FUNCTION 9: Listar espacios nunca usados.
-   SELECT * FROM F_listar_espacios_nunca_usados();
+--FUNCTION 9: HISTORIAL DE INGRESO  Y SALIDA POR USUARIO
+--FUNCTION 10: HISTORIAL DE INGRESO POR VEHICULO. (PLACA)
 
 
---FUNCTION 10: Promedio de tiempo de permanencia por usuario.
 
-  -- Supongamos que quieres probar con el usuario que tiene id_usuario = 1
-    SELECT * FROM F_promedio_tiempo_permanencia_por_usuario(1); -- corregir
+
 
 
 

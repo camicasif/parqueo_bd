@@ -1,195 +1,253 @@
 --ADMINISTRACION DE ESPACIOS Y PARQUEOS
--- 6. Registrar ingreso de un vehículo a un espacio de parqueo
-
-CREATE OR REPLACE PROCEDURE registrar_ingreso_vehiculo(
-    p_placa VARCHAR,
-    p_id_espacio INTEGER,
-    OUT p_mensaje VARCHAR
-) AS $$
+--1.Registrar ingreso de un vehículo a un espacio de parqueo
+CREATE OR REPLACE FUNCTION core.registrar_ingreso_vehiculo(
+    p_placa VARCHAR(7),
+    p_id_espacio_parqueo INTEGER
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
 DECLARE
-    v_existe_placa BOOLEAN;
-    v_estado_espacio INTEGER;
-    v_registro_abierto BOOLEAN;
+    v_vehiculo_existe BOOLEAN;
+    v_estado_actual estado_espacio;
+    v_nuevo_id INTEGER;
 BEGIN
-    -- Verificación de existencia de vehículo
-    SELECT EXISTS(SELECT 1 FROM core.vehiculo WHERE placa = p_placa
-                                              AND eliminado=false)  INTO v_existe_placa;
-    IF NOT v_existe_placa THEN
-        p_mensaje := 'Error: la placa ' || p_placa || ' no existe en la tabla vehiculo.';
-        RETURN;
-    END IF;
+--     -- 1. Validar que la placa del vehículo exista
+--     SELECT EXISTS (
+--         SELECT 1 FROM core.vehiculo WHERE placa = p_placa
+--     ) INTO v_vehiculo_existe;
+--
+--     IF NOT v_vehiculo_existe THEN
+--         RETURN 'Error: La placa del vehículo no existe.';
+--     END IF;
+--
+--     -- 2. Verificar existencia y disponibilidad del espacio
+--     SELECT estado
+--     INTO v_estado_actual
+--     FROM core.espacio_parqueo
+--     WHERE id_espacio_parqueo = p_id_espacio_parqueo;
+--
+--     IF NOT FOUND THEN
+--         RETURN 'Error: El espacio de parqueo no existe.';
+--     END IF;
+--
+--     IF v_estado_actual != 'Disponible' THEN
+--         RETURN 'Error: El espacio de parqueo no está disponible. Su estado actual es ' || v_estado_actual || '.';
+--     END IF;
 
-    -- Verificación de registro abierto para este vehículo
-    SELECT EXISTS(
-        SELECT 1
-        FROM core.registro_parqueo
-        WHERE placa = p_placa AND fecha_hora_salida IS NULL
-    ) INTO v_registro_abierto;
+    -- 3. Insertar y obtener el ID generado
+    INSERT INTO core.registro_parqueo (
+        fecha_hora_ingreso,
+        placa,
+        id_espacio_parqueo
+    )
+    VALUES (
+        NOW(),
+        p_placa,
+        p_id_espacio_parqueo
+    )
+    RETURNING id_registro INTO v_nuevo_id;
 
-    IF v_registro_abierto THEN
-        p_mensaje := 'Error: el vehículo con placa ' || p_placa || ' aún no ha registrado salida.';
-        RETURN;
-    END IF;
+    -- 4. Actualizar estado del espacio
+    UPDATE core.espacio_parqueo
+    SET estado = 'Ocupado'
+    WHERE id_espacio_parqueo = p_id_espacio_parqueo;
 
-    -- Verificación de disponibilidad del espacio
-    SELECT id_estado INTO v_estado_espacio
-    FROM core.espacio_parqueo
-    WHERE id_espacio_parqueo = p_id_espacio;
+    -- 5. Retornar mensaje con ID
+    RETURN 'Ingreso registrado con ID: ' || v_nuevo_id || '. Espacio ' || p_id_espacio_parqueo || ' ahora Ocupado.';
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN 'Error al registrar el ingreso: ' || SQLERRM;
+END;
+$$;
+
+--2.Registrar la salida de un espacio parqueo
+CREATE OR REPLACE FUNCTION core.registrar_salida_vehiculo(
+    p_id_registro INTEGER -- El ID del registro de ingreso que se desea finalizar
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_espacio_id INTEGER;
+    v_placa VARCHAR(7);
+    v_fecha_salida_existente TIMESTAMP;
+BEGIN
+    -- 1. Validar que el registro de parqueo exista y que la fecha_hora_salida sea NULL
+    SELECT
+        id_espacio_parqueo,
+        placa,
+        fecha_hora_salida
+    INTO
+        v_espacio_id,
+        v_placa,
+        v_fecha_salida_existente
+    FROM
+        core.registro_parqueo
+    WHERE
+        id_registro = p_id_registro;
 
     IF NOT FOUND THEN
-        p_mensaje := 'Error: el espacio ' || p_id_espacio || ' no existe.';
-        RETURN;
-    ELSIF v_estado_espacio <> 1 THEN
-        p_mensaje := 'Error: el espacio ' || p_id_espacio || ' no está libre para ingresar.';
-        RETURN;
+        RETURN 'Error: El ID de registro no existe.';
     END IF;
 
-    -- Registrar ingreso
-    INSERT INTO core.registro_parqueo (fecha_hora_ingreso, placa, id_espacio_parqueo)
-    VALUES (NOW(), p_placa, p_id_espacio);
+    IF v_fecha_salida_existente IS NOT NULL THEN
+        RETURN 'Error: La salida para este registro ya ha sido previamente registrada.';
+    END IF;
 
-    UPDATE core.espacio_parqueo
-    SET id_estado = 2
-    WHERE id_espacio_parqueo = p_id_espacio;
-
-    p_mensaje := 'Ingreso registrado correctamente.';
-EXCEPTION
-    WHEN foreign_key_violation THEN
-        p_mensaje := 'Error de integridad referencial al intentar crear el registro.';
-    WHEN others THEN
-        p_mensaje := 'Error inesperado: ' || SQLERRM;
-END;
-$$ LANGUAGE plpgsql;
-
-
-
-CALL registrar_ingreso_vehiculo('JEF0001', 132, NULL);
-
-SELECT *
-FROM core.registro_parqueo
-WHERE placa = 'JEF0001';
-
-
--- 7. Registrar salida de un vehículo del parqueo
-
-CREATE OR REPLACE PROCEDURE registrar_salida_vehiculo(
-    p_placa VARCHAR,
-    p_id_espacio INTEGER,
-    OUT p_mensaje VARCHAR
-) AS $$
-DECLARE
-    v_filas_actualizadas INTEGER;
-BEGIN
-    -- Intenta actualizar la salida
+    -- 2. Actualizar la fecha_hora_salida en core.registro_parqueo
     UPDATE core.registro_parqueo
-    SET fecha_hora_salida = NOW()
-    WHERE placa = p_placa
-      AND id_espacio_parqueo = p_id_espacio
-      AND fecha_hora_salida IS NULL
-    RETURNING 1 INTO v_filas_actualizadas;
+    SET
+        fecha_hora_salida = NOW()
+    WHERE
+        id_registro = p_id_registro;
 
-    IF v_filas_actualizadas IS NULL THEN
-        p_mensaje := 'Error: No se encontró registro activo para salida con esa placa y espacio.';
-        RETURN;
+    -- 3. Actualizar el estado del espacio de parqueo a 'Disponible'
+    UPDATE core.espacio_parqueo
+    SET
+        estado = 'Disponible'
+    WHERE
+        id_espacio_parqueo = v_espacio_id;
+
+    -- 4. Retornar un mensaje de éxito
+    RETURN 'Salida del vehículo con placa ' || v_placa || ' registrada con éxito. Espacio ' || v_espacio_id || ' ahora Disponible.';
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Captura cualquier otro error inesperado
+        RETURN 'Error inesperado al registrar la salida: ' || SQLERRM;
+END;
+$$;
+
+--ADMINISTRACION DE ESPACIOS Y PARQUEOS
+--FUNCTION:1 Registrar ingreso de un vehículo a un espacio de parqueo
+--FUNCTION:2 Registrar la salida de un espacio parqueo
+
+--FUNCTION 3: ACTUALIZAR EL ESTADO DE UN PARQUEO
+CREATE OR REPLACE FUNCTION core.actualizar_estado_espacio(
+    p_id_espacio_parqueo INTEGER,
+    p_nuevo_estado estado_espacio
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_estado_actual estado_espacio;
+BEGIN
+    -- Verificar si el espacio existe y obtener su estado actual
+    SELECT estado
+    INTO v_estado_actual
+    FROM core.espacio_parqueo
+    WHERE id_espacio_parqueo = p_id_espacio_parqueo;
+
+    IF NOT FOUND THEN
+        RETURN 'Error: El espacio de parqueo no existe.';
     END IF;
 
+    -- *** NUEVA VALIDACIÓN: Si el estado actual es 'DISPONIBLE' y se intenta cambiar a 'DISPONIBLE' ***
+    IF v_estado_actual = 'DISPONIBLE' AND p_nuevo_estado = 'DISPONIBLE' THEN
+        RETURN 'Error: El espacio ya está DISPONIBLE y no se puede actualizar a DISPONIBLE nuevamente.';
+    END IF;
 
+    -- Verificar si el estado ya es el mismo (para otros estados)
+    IF v_estado_actual = p_nuevo_estado THEN
+        RETURN 'El espacio ya está en estado "' || p_nuevo_estado || '". No es necesario actualizar.';
+    END IF;
+
+    -- Realizar la actualización
     UPDATE core.espacio_parqueo
-    SET id_estado = 1
-    WHERE id_espacio_parqueo = p_id_espacio;
+    SET estado = p_nuevo_estado
+    WHERE id_espacio_parqueo = p_id_espacio_parqueo;
 
-    p_mensaje := 'Salida registrada correctamente.';
+    RETURN 'Estado actualizado de "' || v_estado_actual || '" a "' || p_nuevo_estado || '" para el espacio ' || p_id_espacio_parqueo || '.';
 EXCEPTION
-    WHEN others THEN
-        p_mensaje := 'Error inesperado: ' || SQLERRM;
+    WHEN OTHERS THEN
+        RETURN 'Error inesperado al actualizar estado: ' || SQLERRM;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
-DO $$
+
+--FUNCTION 4: OBTENER LISTA DE ESAPCIOS DISPONIBLES POR SECCION -- CORREGIR
+CREATE OR REPLACE FUNCTION core.contar_espacios_disponibles_por_seccion(
+    p_id_seccion INTEGER
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
 DECLARE
-    v_mensaje VARCHAR;
+    v_total INTEGER := 0;
+    v_seccion_existe BOOLEAN;
 BEGIN
-    CALL registrar_salida_vehiculo('JEF0001', 132, v_mensaje);
-    RAISE NOTICE 'Resultado: %', v_mensaje;
+    -- Validar si la sección existe
+    SELECT EXISTS (
+        SELECT 1 FROM core.seccion_parqueo WHERE id_seccion = p_id_seccion
+    )
+    INTO v_seccion_existe;
+
+    IF NOT v_seccion_existe THEN
+        RAISE NOTICE ' La sección con ID % no existe.', p_id_seccion;
+        RETURN 'La sección no existe';
+    END IF;
+
+    -- Contar espacios disponibles si la sección existe
+    SELECT COUNT(*)
+    INTO v_total
+    FROM core.espacio_parqueo
+    WHERE estado = 'Disponible' AND id_seccion = p_id_seccion;
+
+    RETURN v_total;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE ' Error inesperado al contar espacios disponibles: %', SQLERRM;
+        RETURN 'ERROR';
 END;
 $$;
 
 
 
 
--- 8. Actualizar el estado de un espacio de parqueo (libre, ocupado, reservado)
-
-CREATE OR REPLACE FUNCTION actualizar_estado_espacio(p_id_espacio INTEGER, p_estado INTEGER)
-RETURNS VARCHAR AS $$
-DECLARE
-    filas_actualizadas INTEGER;
-BEGIN
-    UPDATE espacio_parqueo
-    SET id_estado = p_estado
-    WHERE id_espacio_parqueo = p_id_espacio
-    RETURNING 1 INTO filas_actualizadas;
-
-    IF filas_actualizadas IS NULL THEN
-        RETURN 'Error: No se encontró el espacio con ID ' || p_id_espacio;
-    END IF;
-
-    RETURN 'Estado actualizado correctamente para espacio ' || p_id_espacio;
-
-EXCEPTION
-    WHEN others THEN
-        RETURN 'Error inesperado: ' || SQLERRM;
-END;
-$$ LANGUAGE plpgsql;
-
-SELECT actualizar_estado_espacio(3, 1) AS mensaje;
-
-
-
--- 9. Obtener lista de espacios disponibles por sección
-
-CREATE OR REPLACE FUNCTION obtener_espacios_disponibles(p_id_seccion INTEGER)
+--FUNCTION 5:OBTENER QUE ESPACIOS ESTAN DISPONIBLES EN UNA DETERMINADA SECCION
+CREATE OR REPLACE FUNCTION core.obtener_espacios_disponibles_por_seccion(
+    p_id_seccion INTEGER
+)
 RETURNS TABLE (
     id_espacio_parqueo INTEGER,
-    mensaje TEXT
-) AS $$
+    espacio_id_seccion INTEGER -- Se renombra para evitar ambigüedad
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_seccion_existe BOOLEAN;
 BEGIN
-    RETURN QUERY
-    SELECT ep.id_espacio_parqueo,
-           'Espacio disponible'::text AS mensaje
-    FROM espacio_parqueo ep
-    WHERE ep.id_seccion = p_id_seccion
-      AND ep.id_estado = 1;
+    -- Validar que el id_seccion proporcionado exista en la tabla core.seccion_parqueo
+    SELECT EXISTS (SELECT 1 FROM core.seccion_parqueo WHERE id_seccion = p_id_seccion)
+    INTO v_seccion_existe;
 
-    IF NOT FOUND THEN
-        RETURN QUERY
-        SELECT NULL AS id_espacio_parqueo,
-               ('No hay espacios disponibles para la sección ' || p_id_seccion)::text AS mensaje;
+    IF NOT v_seccion_existe THEN
+        -- Si la sección no existe, se emite una notificación y se retorna una tabla vacía.
+        RAISE NOTICE 'Advertencia: La sección con ID % no existe. No se pueden obtener espacios disponibles.', p_id_seccion;
+        RETURN;
     END IF;
 
+    -- Si la sección existe, se procede a obtener los espacios de parqueo disponibles
+    -- para la sección especificada.
+    RETURN QUERY
+    SELECT
+        ep.id_espacio_parqueo,
+        ep.id_seccion AS espacio_id_seccion -- Se alias la columna para coincidir con el retorno
+    FROM
+        core.espacio_parqueo ep
+    WHERE
+        ep.estado = 'Disponible' AND -- Se utiliza 'Disponible' con 'D' mayúscula según la definición del ENUM
+        ep.id_seccion = p_id_seccion;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Captura cualquier otro error inesperado durante la ejecución
+        RAISE NOTICE 'Error inesperado al obtener espacios disponibles por sección: %', SQLERRM;
+        RETURN; -- Retorna una tabla vacía en caso de error
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
-SELECT * FROM obtener_espacios_disponibles(4);
-
-
-
-
--- 10. Asignar automáticamente un espacio disponible según tipo de usuario y tipo de vehículo
-CREATE OR REPLACE FUNCTION asignar_espacio_automatico(p_id_tipo_usuario INTEGER, p_id_tipo_vehiculo INTEGER)
-RETURNS INTEGER AS $$
-DECLARE
-    v_id_espacio INTEGER;
-BEGIN
-    SELECT ep.id_espacio_parqueo
-    INTO v_id_espacio
-    FROM espacio_parqueo ep
-    JOIN seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
-    JOIN tipo_vehiculo_seccion tvsp ON tvsp.id_seccion = sp.id_seccion
-    WHERE tvsp.id_tipo_vehiculo = p_id_tipo_vehiculo
-      AND sp.id_tipo_usuario = p_id_tipo_usuario
-      AND ep.id_estado = 0
-    LIMIT 1;
-
-    RETURN v_id_espacio;
-END;
-$$ LANGUAGE plpgsql;
