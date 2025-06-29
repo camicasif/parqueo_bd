@@ -18,9 +18,10 @@ GRANT CONNECT ON DATABASE parqueo TO core_editor;
 
 -- Permisos para esquema core
 GRANT USAGE ON SCHEMA core TO app_user, core_editor;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA core TO app_user, core_editor;
+GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA core TO app_user;
 -- core_editor NO tiene DELETE
-
+GRANT USAGE ON SCHEMA core TO app_user, core_editor;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA core TO core_editor;
 -- Permisos para esquema config
 GRANT USAGE ON SCHEMA config TO config_admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA config TO config_admin;

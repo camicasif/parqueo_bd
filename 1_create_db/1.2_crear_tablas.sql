@@ -14,11 +14,6 @@ CREATE TABLE config.tipo_vehiculo
     nombre_tipo_vehiculo VARCHAR(50) NOT NULL
 );
 
-CREATE TABLE config.estado_espacio_parqueo
-(
-    id_estado     SERIAL PRIMARY KEY,
-    nombre_estado VARCHAR(20) NOT NULL CHECK (nombre_estado IN ('Disponible', 'Reservado', 'Ocupado'))
-);
 
 CREATE TABLE config.tipo_vehiculo_seccion
 (
@@ -58,10 +53,14 @@ ALTER TABLE config.tipo_vehiculo_seccion
     ADD CONSTRAINT fk_tipo_vehiculo_seccion
         FOREIGN KEY (id_seccion) REFERENCES core.seccion_parqueo;
 
+create type estado_espacio as enum ('Disponible', 'Reservado', 'Ocupado');
+
+alter type estado_espacio owner to parqueo_admin;
+
 CREATE TABLE core.espacio_parqueo
 (
     id_espacio_parqueo SERIAL PRIMARY KEY,
-    id_estado          INTEGER REFERENCES config.estado_espacio_parqueo,
+    estado             estado_espacio default 'Disponible'::estado_espacio not null,
     id_seccion         INTEGER REFERENCES core.seccion_parqueo
 );
 
@@ -74,13 +73,18 @@ CREATE TABLE core.registro_parqueo
     id_espacio_parqueo INTEGER REFERENCES core.espacio_parqueo
 );
 
+create type estado_reserva as enum ('pendiente', 'aprobada', 'rechazada', 'cancelada');
+
+alter type estado_reserva owner to parqueo_admin;
+
+
 CREATE TABLE core.reserva_espacio (
                                       id_reserva SERIAL PRIMARY KEY,
                                       id_espacio INT NOT NULL REFERENCES core.espacio_parqueo(id_espacio_parqueo),
                                       id_usuario INT NOT NULL REFERENCES core.usuario(id_usuario),
                                       fecha_inicio TIMESTAMP NOT NULL,
                                       fecha_fin TIMESTAMP NOT NULL,
-                                      estado VARCHAR(20) DEFAULT 'pendiente',  -- Ej: pendiente, confirmada, cancelada
+                                      estado           estado_reserva default 'pendiente'::estado_reserva,
                                       fecha_creacion TIMESTAMP DEFAULT NOW()
 );
 

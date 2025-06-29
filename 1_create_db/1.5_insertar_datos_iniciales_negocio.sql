@@ -14,10 +14,6 @@ VALUES (1, 'Moto'),
        (3, 'Camioneta'),
        (4, 'Bus');
 
-INSERT INTO config.estado_espacio_parqueo (id_estado, nombre_estado)
-VALUES (1, 'Disponible'),
-       (2, 'Reservado'),
-       (3, 'Ocupado');
 
 INSERT INTO core.seccion_parqueo (id_seccion, nombre_seccion, id_tipo_usuario)
 VALUES (1, 'Seccion 1', 1),
@@ -47,8 +43,8 @@ DO $$
             SELECT id_seccion FROM core.seccion_parqueo
             LOOP
                 FOR i IN 1..10 LOOP
-                        INSERT INTO core.espacio_parqueo (id_estado, id_seccion)
-                        VALUES (1, seccion_id);  -- 1 = Disponible
+                        INSERT INTO core.espacio_parqueo (estado, id_seccion)
+                        VALUES ('Disponible', seccion_id);  -- 1 = Disponible
                     END LOOP;
             END LOOP;
     END $$;
@@ -56,8 +52,8 @@ DO $$
 DO $$
     BEGIN
         FOR i IN 1..3 LOOP
-                INSERT INTO core.espacio_parqueo (id_estado, id_seccion)
-                VALUES (1, 15);  -- Disponible en sección 15 (Discapacitados)
+                INSERT INTO core.espacio_parqueo (estado, id_seccion)
+                VALUES ('Disponible', 15);  -- Disponible en sección 15 (Discapacitados)
             END LOOP;
     END $$;
 

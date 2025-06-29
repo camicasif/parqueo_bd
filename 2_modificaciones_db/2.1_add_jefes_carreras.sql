@@ -15,8 +15,8 @@ VALUES
 DO $$
 BEGIN
 FOR i IN 1..10 LOOP
-                INSERT INTO core.espacio_parqueo (id_estado, id_seccion)
-                VALUES (1, 16);
+                INSERT INTO core.espacio_parqueo (estado, id_seccion)
+                VALUES ('Disponible', 16);
 END LOOP;
 END $$;
 
@@ -85,4 +85,4 @@ VALUES (
 END LOOP;
 END $$;
 
-SELECT * from usuario u inner join core.vehiculo v on u.id_usuario = v.id_usuario where u.id_tipo_usuario =6
+SELECT * from core.usuario u inner join core.vehiculo v on u.id_usuario = v.id_usuario where u.id_tipo_usuario =6
