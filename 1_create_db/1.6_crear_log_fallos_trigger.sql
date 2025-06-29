@@ -90,7 +90,7 @@ CREATE OR REPLACE FUNCTION core.vehiculo_ya_estacionado(
     p_fin TIMESTAMP
 ) RETURNS BOOLEAN AS $$
 DECLARE
-    v_estado INT;
+    v_estado TEXT;
     v_usuario_id INT;
 BEGIN
     -- Obtener estado del espacio

@@ -412,7 +412,125 @@ $$ LANGUAGE plpgsql;
 
 
 --FUNCTION 9: HISTORIAL DE INGRESO  Y SALIDA POR USUARIO
+CREATE OR REPLACE FUNCTION core.obtener_historial_por_usuario(
+p_id_usuario INTEGER
+)
+RETURNS TABLE (
+    tipo_registro TEXT,
+    fecha_hora_inicio TIMESTAMP,
+    fecha_hora_fin TIMESTAMP,
+    espacio_id INTEGER,
+    seccion_id INTEGER,
+    placa_vehiculo VARCHAR,
+    estado_reserva_o_parqueo TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_usuario_existe BOOLEAN;
+BEGIN
+    -- Validar que el ID de usuario proporcionado exista
+    SELECT EXISTS (SELECT 1 FROM core.usuario WHERE id_usuario = p_id_usuario)
+    INTO v_usuario_existe;
+
+    IF NOT v_usuario_existe THEN
+        RAISE NOTICE 'Advertencia: El usuario con ID % no existe. No se puede obtener el historial.', p_id_usuario;
+        RETURN;
+    END IF;
+
+    -- Obtener registros de parqueo del usuario
+    RETURN QUERY
+    SELECT
+        'Parqueo' AS tipo_registro,
+        rp.fecha_hora_ingreso AS fecha_hora_inicio,
+        rp.fecha_hora_salida AS fecha_hora_fin,
+        rp.id_espacio_parqueo AS espacio_id,
+        ep.id_seccion AS seccion_id,
+        rp.placa AS placa_vehiculo,
+        COALESCE(ep.estado::text, 'Desconocido') AS estado_reserva_o_parqueo -- COALESCE para manejar posibles nulos
+    FROM
+        core.registro_parqueo rp
+    JOIN
+        core.vehiculo v ON rp.placa = v.placa
+    JOIN
+        core.espacio_parqueo ep ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
+    WHERE
+        v.id_usuario = p_id_usuario
+
+    UNION ALL
+
+    -- Obtener reservas del usuario
+    SELECT
+        'Reserva' AS tipo_registro,
+        re.fecha_inicio AS fecha_hora_inicio,
+        re.fecha_fin AS fecha_hora_fin,
+        re.id_espacio AS espacio_id,
+        ep.id_seccion AS seccion_id,
+        NULL AS placa_vehiculo, -- Las reservas no están directamente ligadas a una placa en esta tabla
+        re.estado::text AS estado_reserva_o_parqueo
+    FROM
+        core.reserva_espacio re
+    JOIN
+        core.espacio_parqueo ep ON re.id_espacio = ep.id_espacio_parqueo
+    WHERE
+        re.id_usuario = p_id_usuario
+    ORDER BY
+        fecha_hora_inicio DESC;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error inesperado al obtener el historial del usuario %: %', p_id_usuario, SQLERRM;
+        RETURN;
+END;
+$$;
 --FUNCTION 10: HISTORIAL DE INGRESO POR VEHICULO. (PLACA)
+CREATE OR REPLACE FUNCTION core.obtener_historial_por_vehiculo(
+    p_placa VARCHAR
+)
+RETURNS TABLE (
+    fecha_hora_ingreso TIMESTAMP,
+    fecha_hora_salida TIMESTAMP,
+    id_espacio_parqueo INTEGER,
+    id_seccion INTEGER,
+    estado_espacio TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_vehiculo_existe BOOLEAN;
+BEGIN
+    -- Validar que la placa del vehículo proporcionada exista
+    SELECT EXISTS (SELECT 1 FROM core.vehiculo WHERE placa = p_placa)
+    INTO v_vehiculo_existe;
+
+    IF NOT v_vehiculo_existe THEN
+        RAISE NOTICE 'Advertencia: El vehículo con placa % no existe. No se puede obtener el historial.', p_placa;
+        RETURN;
+    END IF;
+
+    -- Obtener registros de parqueo para la placa del vehículo
+    RETURN QUERY
+    SELECT
+        rp.fecha_hora_ingreso,
+        rp.fecha_hora_salida,
+        rp.id_espacio_parqueo,
+        ep.id_seccion,
+        ep.estado::text AS estado_espacio
+    FROM
+        core.registro_parqueo rp
+    JOIN
+        core.espacio_parqueo ep ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
+    WHERE
+        rp.placa = p_placa
+    ORDER BY
+        rp.fecha_hora_ingreso DESC;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error inesperado al obtener el historial del vehículo %: %', p_placa, SQLERRM;
+        RETURN;
+END;
+$$;
 
 
 
