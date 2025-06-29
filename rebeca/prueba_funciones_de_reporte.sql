@@ -239,10 +239,6 @@
    SELECT * FROM F_listar_espacios_nunca_usados();
 
 
---FUNCTION 10: Promedio de tiempo de permanencia por usuario.
-
-  -- Supongamos que quieres probar con el usuario que tiene id_usuario = 1
-    SELECT * FROM F_promedio_tiempo_permanencia_por_usuario(1); -- corregir
 
 
 

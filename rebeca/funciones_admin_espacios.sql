@@ -1,86 +1,17 @@
 --ADMINISTRACION DE ESPACIOS Y PARQUEOS
--- 6. Registrar ingreso de un vehículo a un espacio de parqueo
+-- 1. Registrar ingreso de un vehículo a un espacio de parqueo
 
-CREATE OR REPLACE PROCEDURE registrar_ingreso_vehiculo(
+
+-- 2. Registrar salida de un vehículo del parqueo
+
+CREATE OR REPLACE FUNCTION registrar_salida_vehiculo(
     p_placa VARCHAR,
-    p_id_espacio INTEGER,
-    OUT p_mensaje VARCHAR
-) AS $$
-DECLARE
-    v_existe_placa BOOLEAN;
-    v_estado_espacio INTEGER;
-    v_registro_abierto BOOLEAN;
-BEGIN
-    -- Verificación de existencia de vehículo
-    SELECT EXISTS(SELECT 1 FROM core.vehiculo WHERE placa = p_placa
-                                              AND eliminado=false)  INTO v_existe_placa;
-    IF NOT v_existe_placa THEN
-        p_mensaje := 'Error: la placa ' || p_placa || ' no existe en la tabla vehiculo.';
-        RETURN;
-    END IF;
-
-    -- Verificación de registro abierto para este vehículo
-    SELECT EXISTS(
-        SELECT 1
-        FROM core.registro_parqueo
-        WHERE placa = p_placa AND fecha_hora_salida IS NULL
-    ) INTO v_registro_abierto;
-
-    IF v_registro_abierto THEN
-        p_mensaje := 'Error: el vehículo con placa ' || p_placa || ' aún no ha registrado salida.';
-        RETURN;
-    END IF;
-
-    -- Verificación de disponibilidad del espacio
-    SELECT id_estado INTO v_estado_espacio
-    FROM core.espacio_parqueo
-    WHERE id_espacio_parqueo = p_id_espacio;
-
-    IF NOT FOUND THEN
-        p_mensaje := 'Error: el espacio ' || p_id_espacio || ' no existe.';
-        RETURN;
-    ELSIF v_estado_espacio <> 1 THEN
-        p_mensaje := 'Error: el espacio ' || p_id_espacio || ' no está libre para ingresar.';
-        RETURN;
-    END IF;
-
-    -- Registrar ingreso
-    INSERT INTO core.registro_parqueo (fecha_hora_ingreso, placa, id_espacio_parqueo)
-    VALUES (NOW(), p_placa, p_id_espacio);
-
-    UPDATE core.espacio_parqueo
-    SET id_estado = 2
-    WHERE id_espacio_parqueo = p_id_espacio;
-
-    p_mensaje := 'Ingreso registrado correctamente.';
-EXCEPTION
-    WHEN foreign_key_violation THEN
-        p_mensaje := 'Error de integridad referencial al intentar crear el registro.';
-    WHEN others THEN
-        p_mensaje := 'Error inesperado: ' || SQLERRM;
-END;
-$$ LANGUAGE plpgsql;
-
-
-
-CALL registrar_ingreso_vehiculo('JEF0001', 132, NULL);
-
-SELECT *
-FROM core.registro_parqueo
-WHERE placa = 'JEF0001';
-
-
--- 7. Registrar salida de un vehículo del parqueo
-
-CREATE OR REPLACE PROCEDURE registrar_salida_vehiculo(
-    p_placa VARCHAR,
-    p_id_espacio INTEGER,
-    OUT p_mensaje VARCHAR
-) AS $$
+    p_id_espacio INTEGER
+) RETURNS TEXT AS $$
 DECLARE
     v_filas_actualizadas INTEGER;
 BEGIN
-    -- Intenta actualizar la salida
+    -- Intenta registrar la salida
     UPDATE core.registro_parqueo
     SET fecha_hora_salida = NOW()
     WHERE placa = p_placa
@@ -88,31 +19,24 @@ BEGIN
       AND fecha_hora_salida IS NULL
     RETURNING 1 INTO v_filas_actualizadas;
 
+    -- Si no se actualizó ningún registro, el vehículo no tiene una entrada activa en ese espacio
     IF v_filas_actualizadas IS NULL THEN
-        p_mensaje := 'Error: No se encontró registro activo para salida con esa placa y espacio.';
-        RETURN;
+        RETURN 'Error: No se encontró registro activo de ingreso para esa placa en ese espacio.';
     END IF;
 
-
+    -- Liberar el espacio
     UPDATE core.espacio_parqueo
-    SET id_estado = 1
+    SET estado = 'Disponible'
     WHERE id_espacio_parqueo = p_id_espacio;
 
-    p_mensaje := 'Salida registrada correctamente.';
+    RETURN 'Salida registrada correctamente.';
+
 EXCEPTION
     WHEN others THEN
-        p_mensaje := 'Error inesperado: ' || SQLERRM;
+        RETURN 'Error inesperado: ' || SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
 
-DO $$
-DECLARE
-    v_mensaje VARCHAR;
-BEGIN
-    CALL registrar_salida_vehiculo('JEF0001', 132, v_mensaje);
-    RAISE NOTICE 'Resultado: %', v_mensaje;
-END;
-$$;
 
 
 
