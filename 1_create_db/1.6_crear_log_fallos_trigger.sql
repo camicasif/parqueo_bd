@@ -7,7 +7,7 @@ BEGIN
     INTO result
     FROM core.vehiculo v
              JOIN core.usuario u ON u.id_usuario = v.id_usuario
-    WHERE v.placa = p_placa;
+    WHERE v.placa = p_placa AND v.eliminado = false;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'El vehículo con placa % no existe.', p_placa;
@@ -26,11 +26,10 @@ BEGIN
     INTO result
     FROM core.espacio_parqueo ep
              JOIN core.seccion_parqueo sp ON sp.id_seccion = ep.id_seccion
-    WHERE ep.id_espacio_parqueo = p_id_espacio;
+    WHERE ep.id_espacio_parqueo = p_id_espacio AND ep.eliminado = false AND sp.eliminado = false;
 
     IF NOT FOUND THEN
-        RAISE NOTICE 'Error: El espacio de parqueo % no existe.', p_id_espacio;
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: El espacio de parqueo % no existe.', p_id_espacio;
     END IF;
 
     RETURN result;
@@ -50,6 +49,7 @@ BEGIN
             FROM config.tipo_vehiculo_seccion
             WHERE id_seccion = p_id_seccion
               AND id_tipo_vehiculo = p_id_tipo_vehiculo
+              AND eliminado = false
         );
     ELSE
         -- Validar compatibilidad completa
@@ -60,6 +60,7 @@ BEGIN
             WHERE sp.id_seccion = p_id_seccion
               AND sp.id_tipo_usuario = p_id_tipo_usuario
               AND tvsp.id_tipo_vehiculo = p_id_tipo_vehiculo
+              AND tvsp.eliminado = false
         );
     END IF;
 END;
@@ -75,6 +76,7 @@ BEGIN
         SELECT 1
         FROM core.registro_parqueo rp
         WHERE rp.id_espacio_parqueo = p_id_espacio
+          AND eliminado = false
           AND rp.fecha_hora_ingreso < COALESCE(p_fin, rp.fecha_hora_salida)
           AND rp.fecha_hora_salida > p_inicio
     );
@@ -104,7 +106,7 @@ BEGIN
 
     -- Si está ocupado (estado 3), hay conflicto
     IF v_estado = 'Ocupado' THEN
-        RAISE NOTICE 'ERROR: El espacio esta ocupado';
+        RAISE EXCEPTION 'ERROR: El espacio esta ocupado';
         RETURN TRUE;
     END IF;
     -- Obtener id del usuario del vehículo
@@ -125,7 +127,7 @@ BEGIN
         ) THEN
             RETURN FALSE; -- La reserva le pertenece
         ELSE
-            RAISE NOTICE 'ERROR: El espacio esta reservado por otro usuario';
+            RAISE EXCEPTION 'ERROR: El espacio esta reservado por otro usuario';
             RETURN TRUE; -- Está reservado y no le pertenece
         END IF;
     END IF;
@@ -161,14 +163,12 @@ BEGIN
         VALUES (v_usuario.id_usuario, NEW.placa, DATE(NEW.fecha_hora_ingreso),
                 NEW.fecha_hora_ingreso::time, COALESCE(NEW.fecha_hora_salida::time, NULL),
                 'Incompatibilidad entre usuario, vehículo y sección');
-        RAISE NOTICE 'Error: Incompatibilidad entre usuario, vehículo y sección';
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: Incompatibilidad entre usuario, vehículo y sección';
     END IF;
 
     -- Validar coherencia de horas
     IF NEW.fecha_hora_salida IS NOT NULL AND NEW.fecha_hora_ingreso >= NEW.fecha_hora_salida THEN
-        RAISE NOTICE 'Error: La hora de ingreso debe ser menor que la de salida.';
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: La hora de ingreso debe ser menor que la de salida.';
     END IF;
 
     -- Validar que el mismo vehículo no esté en otro lugar
@@ -177,7 +177,7 @@ BEGIN
         VALUES (v_usuario.id_usuario, NEW.placa, DATE(NEW.fecha_hora_ingreso),
                 NEW.fecha_hora_ingreso::time, COALESCE(NEW.fecha_hora_salida::time, NULL),
                 'Vehículo ya registrado en otro espacio en ese horario');
-        RETURN NULL;
+        RAISE EXCEPTION 'Error: Vehículo ya registrado en otro espacio en ese horario';
     END IF;
 
     RETURN NEW;
@@ -252,8 +252,3 @@ EXECUTE PROCEDURE core.validar_y_loggear_vehiculo_espacio();
 -- INSERT INTO core.registro_parqueo (id_espacio_parqueo, placa, fecha_hora_ingreso, fecha_hora_salida)
 -- VALUES (12, 'BBB222', NOW(), NOW() + INTERVAL '1 hour');
 -- -- Esperado: Exception "Conflicto: el vehículo BBB222 no puede estacionar en el espacio 12"
-
--- HACER ESTOS TRIGGERS
--- TODO AL RESERVAR HAY QUE ACTUALIZAR EL ESTADO DEL ESPACIO PARA PONERLO EN RESERVADO
--- HAY QUE ACTUALIZAR LA RESERVA  A FINALIZADA CUANDO EL VEHICULO SE VAYA
--- HAY QUE ACTUALIZAR EL ESTADO DEL ESPACIO CUANDO EL VEHICULO ESTE OCUPADO Y A DESOCUPADO CUANDO EL VEHICULO SE VAYA

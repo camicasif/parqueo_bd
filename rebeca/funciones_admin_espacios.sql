@@ -12,28 +12,28 @@ DECLARE
     v_estado_actual estado_espacio;
     v_nuevo_id INTEGER;
 BEGIN
-    -- 1. Validar que la placa del vehículo exista
-    SELECT EXISTS (
-        SELECT 1 FROM core.vehiculo WHERE placa = p_placa
-    ) INTO v_vehiculo_existe;
-
-    IF NOT v_vehiculo_existe THEN
-        RETURN 'Error: La placa del vehículo no existe.';
-    END IF;
-
-    -- 2. Verificar existencia y disponibilidad del espacio
-    SELECT estado
-    INTO v_estado_actual
-    FROM core.espacio_parqueo
-    WHERE id_espacio_parqueo = p_id_espacio_parqueo;
-
-    IF NOT FOUND THEN
-        RETURN 'Error: El espacio de parqueo no existe.';
-    END IF;
-
-    IF v_estado_actual != 'Disponible' THEN
-        RETURN 'Error: El espacio de parqueo no está disponible. Su estado actual es ' || v_estado_actual || '.';
-    END IF;
+--     -- 1. Validar que la placa del vehículo exista
+--     SELECT EXISTS (
+--         SELECT 1 FROM core.vehiculo WHERE placa = p_placa
+--     ) INTO v_vehiculo_existe;
+--
+--     IF NOT v_vehiculo_existe THEN
+--         RETURN 'Error: La placa del vehículo no existe.';
+--     END IF;
+--
+--     -- 2. Verificar existencia y disponibilidad del espacio
+--     SELECT estado
+--     INTO v_estado_actual
+--     FROM core.espacio_parqueo
+--     WHERE id_espacio_parqueo = p_id_espacio_parqueo;
+--
+--     IF NOT FOUND THEN
+--         RETURN 'Error: El espacio de parqueo no existe.';
+--     END IF;
+--
+--     IF v_estado_actual != 'Disponible' THEN
+--         RETURN 'Error: El espacio de parqueo no está disponible. Su estado actual es ' || v_estado_actual || '.';
+--     END IF;
 
     -- 3. Insertar y obtener el ID generado
     INSERT INTO core.registro_parqueo (
@@ -58,7 +58,7 @@ BEGIN
 
 EXCEPTION
     WHEN OTHERS THEN
-        RETURN 'Error inesperado al registrar el ingreso: ' || SQLERRM;
+        RETURN 'Error al registrar el ingreso: ' || SQLERRM;
 END;
 $$;
 
