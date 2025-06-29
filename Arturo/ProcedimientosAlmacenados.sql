@@ -119,7 +119,7 @@ v_contrasena VARCHAR(100);
     v_datos_despues JSONB;
 BEGIN
     -- Validar contraseña nueva
-    IF p_nueva_contrasena IS NULL OR LENGTH(TRIM(p_nueva_contrasena)) < 8 THEN
+    IF LENGTH(p_nueva_contrasena) < 8 THEN
         INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
         VALUES (
                    'usuario',
@@ -129,9 +129,44 @@ BEGIN
                    NULL,
                    CURRENT_USER
                );
-        RAISE EXCEPTION 'La nueva contraseña debe tener al menos 8 caracteres';
-END IF;
+        RAISE EXCEPTION 'La contraseña debe tener mínimamente 8 caracteres.';
 
+    ELSIF p_nueva_contrasena !~ '[a-z]' THEN
+        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+        VALUES (
+                   'usuario',
+                   p_id_usuario::TEXT,
+                   'UPDATE',
+                   NULL,
+                   NULL,
+                   CURRENT_USER
+               );
+        RAISE EXCEPTION 'La contraseña debe contener al menos una letra minúscula.';
+
+    ELSIF p_nueva_contrasena !~ '[A-Z]' THEN
+        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+        VALUES (
+                   'usuario',
+                   p_id_usuario::TEXT,
+                   'UPDATE',
+                   NULL,
+                   NULL,
+                   CURRENT_USER
+               );
+        RAISE EXCEPTION 'La contraseña debe contener al menos una letra mayúscula.';
+
+    ELSIF p_nueva_contrasena !~ '[0-9]' THEN
+        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
+        VALUES (
+                   'usuario',
+                   p_id_usuario::TEXT,
+                   'UPDATE',
+                   NULL,
+                   NULL,
+                   CURRENT_USER
+               );
+        RAISE EXCEPTION 'La contraseña debe contener mínimamente un número.';
+    END IF;
     -- Verificar si el usuario existe
 SELECT EXISTS (
     SELECT 1 FROM usuario WHERE id_usuario = p_id_usuario
