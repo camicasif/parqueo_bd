@@ -2,7 +2,10 @@
 --FUNCTION 1: REGISTRAR VEHICULO EN ESPACIO
     SELECT core.registrar_ingreso_vehiculo('JEF0003', 138);
 
-select * from core.espacio_parqueo where id_espacio_parqueo=138;
+select  ep.id_espacio_parqueo, ep.estado, sp.id_tipo_usuario, sp.id_seccion
+from core.espacio_parqueo ep inner join core.seccion_parqueo sp on
+    ep.id_seccion = sp.id_seccion
+         where id_espacio_parqueo=138;
 select * from core.registro_parqueo where placa='JEF0003' AND id_espacio_parqueo=138;
 
 SELECT *
