@@ -28,3 +28,15 @@ WHERE v.placa = 'JEF0003';
 
 
 SELECT * FROM core.espacio_parqueo where id_espacio_parqueo=135;
+
+
+--FUNCTION 3: ACTUALIZAR EL ESTADO DE UN PARQUEO
+    SELECT core.actualizar_estado_espacio(36, 'Ocupado');
+    SELECT * FROM core.espacio_parqueo where id_espacio_parqueo=36;
+
+
+--FUNCTION 4: OBTENER LISTA DE ESPACIOS DISPONIBLES POR SECCION
+
+    SELECT core.contar_espacios_disponibles_por_seccion (100000);
+
+    SELECT core.obtener_espacios_disponibles_por_seccion(100000);
