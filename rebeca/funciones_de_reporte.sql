@@ -411,54 +411,9 @@ $$ LANGUAGE plpgsql;
 
 
 
---9. Listar espacios nunca usados.
-CREATE OR REPLACE FUNCTION F_listar_espacios_nunca_usados()
-RETURNS TABLE (
-    id_espacio_parqueo INTEGER,
-    estado estado_espacio,
-    id_seccion INTEGER
-) AS $$
-BEGIN
-    -- Validar que existan las tablas requeridas
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'core'
-          AND table_name = 'espacio_parqueo'
-    ) THEN
-        RAISE EXCEPTION 'La tabla core.espacio_parqueo no existe.';
-    END IF;
+--FUNCTION 9: HISTORIAL DE INGRESO  Y SALIDA POR USUARIO
+--FUNCTION 10: HISTORIAL DE INGRESO POR VEHICULO. (PLACA)
 
-    IF NOT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'core'
-          AND table_name = 'registro_parqueo'
-    ) THEN
-        RAISE EXCEPTION 'La tabla core.registro_parqueo no existe.';
-    END IF;
-
-    -- Validar si hay espacios registrados
-    IF NOT EXISTS (SELECT 1 FROM core.espacio_parqueo) THEN
-        RAISE NOTICE 'No existen espacios de parqueo registrados.';
-        RETURN;
-    END IF;
-
-    -- Retornar espacios que no tienen registros en registro_parqueo
-    RETURN QUERY
-    SELECT ep.id_espacio_parqueo,
-           ep.estado,
-           ep.id_seccion
-    FROM core.espacio_parqueo ep
-    LEFT JOIN core.registro_parqueo rp ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
-    WHERE rp.id_espacio_parqueo IS NULL
-    ORDER BY ep.id_espacio_parqueo;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE EXCEPTION 'Error inesperado: %', SQLERRM;
-END;
-$$ LANGUAGE plpgsql;
 
 
 
