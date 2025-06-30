@@ -26,7 +26,7 @@ Listado de vistas
 
         5.vista_usuarios_sin_ingresos
 
-        7.vista_porcentaje_ocupacion_diaria_por_seccion
+        7.vista_porcentaje_ocupacion_diaria_por_seccion (eliminada)
 
         8.vista_conteo_por_tipo_usuario
 

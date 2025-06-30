@@ -125,25 +125,40 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
-
 CREATE OR REPLACE FUNCTION validar_login(
     p_codigo_universitario INTEGER,
-    p_contrasena VARCHAR
+    p_contrasena VARCHAR,
+    p_direccion_ip VARCHAR DEFAULT '0.0.0.0'
 ) RETURNS VOID AS $$
 DECLARE
     v_usuario core.usuario%ROWTYPE;
+    v_exito BOOLEAN := FALSE;
+    v_motivo TEXT := '';
 BEGIN
+    -- Buscar al usuario por su código
     SELECT * INTO v_usuario
     FROM core.usuario
     WHERE codigo_universitario = p_codigo_universitario
-      AND contrasena = p_contrasena
-      AND eliminado = false;
+      AND eliminado = FALSE;
 
-    IF FOUND THEN
+    IF NOT FOUND THEN
+        v_motivo := 'Usuario no encontrado o eliminado';
+        RAISE NOTICE 'Credenciales inválidas.';
+    ELSIF v_usuario.bloqueado THEN
+        v_motivo := 'Usuario bloqueado';
+        RAISE NOTICE 'Usuario bloqueado.';
+    ELSIF v_usuario.contrasena = p_contrasena THEN
+        v_exito := TRUE;
+        v_motivo := 'Login exitoso';
         RAISE NOTICE 'Login exitoso. Bienvenido, % %', v_usuario.nombre, v_usuario.apellidos;
     ELSE
-        RAISE NOTICE 'Credenciales inválidas o usuario desactivado.';
+        v_motivo := 'Contraseña incorrecta';
+        RAISE NOTICE 'Contraseña incorrecta.';
     END IF;
+
+    -- Registrar el intento en el log
+    PERFORM registrar_intento_login(v_usuario.id_usuario, v_exito, p_direccion_ip, v_motivo);
+
 EXCEPTION
     WHEN OTHERS THEN
         RAISE NOTICE 'Error en validación de login: %', SQLERRM;
@@ -387,30 +402,38 @@ END;
 $$ LANGUAGE plpgsql;
 
 ---4. Función para bloquear usuario tras 3 intentos fallidos (to_do)
-
-CREATE OR REPLACE FUNCTION fn_bloquear_usuario_login(p_id_usuario INTEGER)
-RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION registrar_intento_login(
+    p_id_usuario INTEGER,
+    p_exito BOOLEAN,
+    p_direccion_ip VARCHAR,
+    p_motivo TEXT
+) RETURNS VOID AS $$
+DECLARE
+    intentos_fallidos INTEGER;
 BEGIN
-    -- Registrar intento fallido
-    INSERT INTO log.log_fallos_parqueo (id_usuario, fecha, fecha_evento)
-    VALUES (p_id_usuario, CURRENT_DATE, NOW());
+    -- Registrar el intento en el log
+    INSERT INTO core.log_intentos_login (
+        id_usuario, exito, direccion_ip, motivo
+    ) VALUES (
+        p_id_usuario, p_exito, p_direccion_ip, p_motivo
+    );
 
-    -- Verificar si tiene 3 o más intentos hoy
-    IF (SELECT COUNT(*) FROM log.log_fallos_parqueo
+    -- Si el intento fue fallido, contamos cuántos fallos seguidos lleva hoy
+    IF NOT p_exito THEN
+        SELECT COUNT(*) INTO intentos_fallidos
+        FROM core.log_intentos_login
         WHERE id_usuario = p_id_usuario
-        AND fecha = CURRENT_DATE) >= 3 THEN
+          AND exito = FALSE
+          AND fecha_intento::date = CURRENT_DATE;
 
-        -- Actualizar usuario como eliminado (soft delete)
-        UPDATE core.usuario
-        SET eliminado = true
-        WHERE id_usuario = p_id_usuario;
+        -- Si tiene 3 o más fallos hoy, lo bloqueamos
+        IF intentos_fallidos >= 3 THEN
+            UPDATE core.usuario
+            SET bloqueado = TRUE
+            WHERE id_usuario = p_id_usuario;
 
-        -- Registrar en log de cambios
-        INSERT INTO log.log_cambios (tabla, id_registro, accion, datos_antes, datos_despues, fecha_evento, usuario_bd)
-        VALUES ('usuario', p_id_usuario, 'BLOQUEO POR INTENTOS FALLIDOS',
-                (SELECT row_to_json(u) FROM core.usuario u WHERE id_usuario = p_id_usuario),
-                (SELECT row_to_json(u) FROM core.usuario u WHERE id_usuario = p_id_usuario AND eliminado = true),
-                NOW(), 'system');
+            RAISE NOTICE 'Usuario bloqueado por múltiples intentos fallidos.';
+        END IF;
     END IF;
 END;
 $$ LANGUAGE plpgsql;
