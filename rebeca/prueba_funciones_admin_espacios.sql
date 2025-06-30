@@ -1,7 +1,9 @@
 --PRUEBAS
 --FUNCTION 1: REGISTRAR VEHICULO EN ESPACIO
-    SELECT core.registrar_ingreso_vehiculo('ABC1161', 56);
+    SELECT core.registrar_ingreso_vehiculo('ABC1161', 157);
     SELECT * FROM core.registro_parqueo where placa='ABC1161';
+
+    SELECT * FROM core.registro_parqueo where placa='JEF0001';
 
 
 SELECT * FROM core.vehiculo INNER JOIN core.usuario ON vehiculo.id_usuario = usuario.id_usuario
@@ -10,7 +12,7 @@ SELECT * FROM core.vehiculo INNER JOIN core.usuario ON vehiculo.id_usuario = usu
 SELECT core.registrar_ingreso_vehiculo('JEF0001', 156);
 
 --FUNCTION 2: REGISTRAR SALIDA
-      SELECT core.registrar_salida_vehiculo(58063);
+      SELECT core.registrar_salida_vehiculo(58070);
 
 
 --FUNCTION 3: ACTUALIZAR EL ESTADO DE UN PARQUEO

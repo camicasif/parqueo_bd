@@ -143,11 +143,6 @@ BEGIN
         RETURN 'Error: El espacio de parqueo no existe.';
     END IF;
 
-    -- *** NUEVA VALIDACIÓN: Si el estado actual es 'DISPONIBLE' y se intenta cambiar a 'DISPONIBLE' ***
-    IF v_estado_actual = 'DISPONIBLE' AND p_nuevo_estado = 'DISPONIBLE' THEN
-        RETURN 'Error: El espacio ya está DISPONIBLE y no se puede actualizar a DISPONIBLE nuevamente.';
-    END IF;
-
     -- Verificar si el estado ya es el mismo (para otros estados)
     IF v_estado_actual = p_nuevo_estado THEN
         RETURN 'El espacio ya está en estado "' || p_nuevo_estado || '". No es necesario actualizar.';
@@ -177,7 +172,7 @@ DECLARE
     v_total INTEGER := 0;
     v_seccion_existe BOOLEAN;
 BEGIN
-    -- Validar si la sección existe
+    -- Validar si la sección existe si es que por lo menos hay un subvalor en la consulta devuelve true sino false
     SELECT EXISTS (
         SELECT 1 FROM core.seccion_parqueo WHERE id_seccion = p_id_seccion
     )
@@ -234,11 +229,11 @@ BEGIN
     RETURN QUERY
     SELECT
         ep.id_espacio_parqueo,
-        ep.id_seccion AS espacio_id_seccion -- Se alias la columna para coincidir con el retorno
+        ep.id_seccion AS espacio_id_seccion
     FROM
         core.espacio_parqueo ep
     WHERE
-        ep.estado = 'Disponible' AND -- Se utiliza 'Disponible' con 'D' mayúscula según la definición del ENUM
+        ep.estado = 'Disponible' AND
         ep.id_seccion = p_id_seccion;
 
 EXCEPTION
@@ -254,7 +249,7 @@ $$;
 CREATE OR REPLACE FUNCTION core.verificar_disponibilidad_espacio(
     p_id_espacio_parqueo INTEGER
 )
-RETURNS TEXT -- Retornará un mensaje indicando el estado o si hay error
+RETURNS TEXT
 LANGUAGE plpgsql
 AS $$
 DECLARE
