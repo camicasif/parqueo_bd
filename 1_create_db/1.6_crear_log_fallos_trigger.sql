@@ -96,8 +96,10 @@ BEGIN
         WHERE placa = p_placa
           AND eliminado = false
           AND (p_id_actual IS NULL OR id_registro != p_id_actual)
-          AND fecha_hora_ingreso < COALESCE(p_fin, fecha_hora_salida)
-          AND fecha_hora_salida > p_inicio
+          AND (
+            fecha_hora_salida IS NULL  -- si el vehículo no ha salido, hay conflicto
+                OR fecha_hora_salida > p_inicio  -- si ya tenía una salida posterior al nuevo ingreso
+            )
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -192,3 +194,42 @@ CREATE TRIGGER trg_validar_y_loggear_vehiculo_espacio
     FOR EACH ROW
 EXECUTE PROCEDURE core.validar_y_loggear_vehiculo_espacio();
 
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION core.validar_coherencia_fechas_registro()
+    RETURNS TRIGGER AS $$
+BEGIN
+    -- Solo para actualizaciones
+    IF TG_OP = 'UPDATE' THEN
+        -- Validar solo si cambiaron las fechas
+        IF (NEW.fecha_hora_ingreso IS DISTINCT FROM OLD.fecha_hora_ingreso)
+            OR (NEW.fecha_hora_salida IS DISTINCT FROM OLD.fecha_hora_salida) THEN
+
+            -- Validar que la fecha de ingreso sea menor que la de salida (si la salida no es NULL)
+            IF NEW.fecha_hora_salida IS NOT NULL AND NEW.fecha_hora_ingreso >= NEW.fecha_hora_salida THEN
+                RAISE EXCEPTION 'Error: La fecha de ingreso (%), debe ser menor que la fecha de salida (%).',
+                    NEW.fecha_hora_ingreso, NEW.fecha_hora_salida;
+            END IF;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
+
+
+
+DROP TRIGGER IF EXISTS trg_validar_coherencia_fechas_registro ON core.registro_parqueo;
+
+CREATE TRIGGER trg_validar_coherencia_fechas_registro
+    BEFORE UPDATE ON core.registro_parqueo
+    FOR EACH ROW
+EXECUTE PROCEDURE core.validar_coherencia_fechas_registro();

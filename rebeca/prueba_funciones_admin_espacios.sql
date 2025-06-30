@@ -1,6 +1,24 @@
 --PRUEBAS
 --FUNCTION 1: REGISTRAR VEHICULO EN ESPACIO
-    SELECT core.registrar_ingreso_vehiculo('JEF0003', 138);
+SELECT * FROM core.usuario where id_tipo_usuario =5;
+SELECT * from core.vehiculo inner join core.usuario u on u.id_usuario = vehiculo.id_usuario
+where id_tipo_usuario =5;
+
+select * from core.registro_parqueo order by id_registro desc limit 20;
+
+select * from core.registro_parqueo
+    inner join core.espacio_parqueo ep on ep.id_espacio_parqueo = registro_parqueo.id_espacio_parqueo
+where ep.id_espacio_parqueo =138;
+select * from core.espacio_parqueo where id_espacio_parqueo = 138;
+    SELECT core.registrar_ingreso_vehiculo('ABC1191', 90);
+SELECT core.registrar_salida_vehiculo(64639);
+
+SELECT 1
+FROM core.registro_parqueo
+WHERE placa = 'ABC1181'
+  AND eliminado = false
+  AND fecha_hora_ingreso < COALESCE(null, fecha_hora_salida)
+  AND fecha_hora_salida > NOW();
 
 select  ep.id_espacio_parqueo, ep.estado, sp.id_tipo_usuario, sp.id_seccion
 from core.espacio_parqueo ep inner join core.seccion_parqueo sp on
