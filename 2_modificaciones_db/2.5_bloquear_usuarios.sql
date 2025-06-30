@@ -1,6 +1,6 @@
 ALTER TABLE core.usuario ADD COLUMN bloqueado BOOLEAN DEFAULT FALSE;
 
-CREATE TABLE core.log_intentos_login (
+CREATE TABLE log.log_intentos_login (
     id_log SERIAL PRIMARY KEY,
     id_usuario INTEGER,
     fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
