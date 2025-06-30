@@ -1,36 +1,43 @@
------Login errores
---------------------------------
 CREATE OR REPLACE FUNCTION registrar_login_fallido_en_log(
-    p_codigo_universitario INTEGER,
+    p_id_usuario INTEGER,
     p_motivo TEXT,
-    p_usuario_bd TEXT
+    p_direccion_ip TEXT DEFAULT '127.0.0.1'
 ) RETURNS VOID AS $$
 DECLARE
-    v_datos JSONB;
+    v_fallas_count INTEGER;
 BEGIN
-    v_datos := jsonb_build_object(
-        'codigo_universitario', p_codigo_universitario,
-        'motivo', p_motivo
+    -- Registrar el intento fallido
+    INSERT INTO log.log_intentos_login (
+        id_usuario,
+        exito,
+        direccion_ip,
+        motivo
+    ) VALUES (
+        p_id_usuario,
+        FALSE,
+        p_direccion_ip,
+        p_motivo
     );
 
-    INSERT INTO log.log_cambios (
-        tabla,
-        id_registro,
-        accion,
-        datos_antes,
-        datos_despues,
-        fecha_evento,
-        usuario_bd
-    )
-    VALUES (
-        'usuario',
-        p_codigo_universitario::TEXT,
-        'login_fallido',
-        v_datos,
-        NULL,
-        NOW(),
-        p_usuario_bd
-    );
+    -- Verificar si hay 3 fallos consecutivos
+    SELECT COUNT(*) INTO v_fallas_count
+    FROM (
+        SELECT exito
+        FROM log.log_intentos_login
+        WHERE id_usuario = p_id_usuario
+        ORDER BY fecha_intento DESC
+        LIMIT 3
+    ) sub
+    WHERE exito = FALSE;
+
+    -- Bloquear si hay 3 fallos seguidos
+    IF v_fallas_count = 3 THEN
+        UPDATE core.usuario
+        SET bloqueado = TRUE
+        WHERE id_usuario = p_id_usuario;
+
+        RAISE NOTICE 'Usuario bloqueado por múltiples intentos fallidos.';
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -38,30 +45,47 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION validar_login(
     p_codigo_universitario INTEGER,
     p_contrasena VARCHAR,
-    p_usuario_bd TEXT DEFAULT 'admin'
+    p_direccion_ip TEXT DEFAULT '127.0.0.1'
 ) RETURNS VOID AS $$
 DECLARE
     v_usuario core.usuario%ROWTYPE;
 BEGIN
+    -- Buscar al usuario por código universitario
     SELECT * INTO v_usuario
     FROM core.usuario
     WHERE codigo_universitario = p_codigo_universitario
-      AND contrasena = p_contrasena
-      AND eliminado = false;
+      AND eliminado = FALSE;
 
-    IF FOUND THEN
+    -- Si no existe
+    IF NOT FOUND THEN
+        RAISE NOTICE 'Usuario no encontrado.';
+        RETURN;
+    END IF;
+
+    -- Si está bloqueado
+    IF v_usuario.bloqueado THEN
+        RAISE NOTICE 'El usuario está bloqueado.';
+        RETURN;
+    END IF;
+
+    -- Verificar contraseña
+    IF v_usuario.contrasena = p_contrasena THEN
         RAISE NOTICE 'Login exitoso. Bienvenido, % %', v_usuario.nombre, v_usuario.apellidos;
     ELSE
-        -- Loguear intento fallido
+        -- Intento fallido
         PERFORM registrar_login_fallido_en_log(
-            p_codigo_universitario,
-            'Credenciales inválidas o usuario desactivado',
-            p_usuario_bd
+            v_usuario.id_usuario,
+            'Contraseña incorrecta',
+            p_direccion_ip
         );
-        RAISE NOTICE 'Credenciales inválidas o usuario desactivado.';
+        RAISE NOTICE 'Credenciales inválidas.';
     END IF;
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE NOTICE 'Error en validación de login: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
+
+
+SELECT validar_login(100045, 'clave_incorrecta1', '192.168.1.10');
+SELECT validar_login(100045, 'clave_incorrecta1', '192.168.1.10');
+
+
+;
