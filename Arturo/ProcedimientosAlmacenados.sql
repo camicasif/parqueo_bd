@@ -128,51 +128,15 @@ v_contrasena VARCHAR(100);
 BEGIN
     -- Validar contraseña nueva
     IF LENGTH(p_nueva_contrasena) < 8 THEN
-        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
-        VALUES (
-                   'usuario',
-                   p_id_usuario::TEXT,
-                   'UPDATE',
-                   NULL,
-                   NULL,
-                   CURRENT_USER
-               );
         RAISE EXCEPTION 'La contraseña debe tener mínimamente 8 caracteres.';
 
     ELSIF p_nueva_contrasena !~ '[a-z]' THEN
-        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
-        VALUES (
-                   'usuario',
-                   p_id_usuario::TEXT,
-                   'UPDATE',
-                   NULL,
-                   NULL,
-                   CURRENT_USER
-               );
         RAISE EXCEPTION 'La contraseña debe contener al menos una letra minúscula.';
 
     ELSIF p_nueva_contrasena !~ '[A-Z]' THEN
-        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
-        VALUES (
-                   'usuario',
-                   p_id_usuario::TEXT,
-                   'UPDATE',
-                   NULL,
-                   NULL,
-                   CURRENT_USER
-               );
         RAISE EXCEPTION 'La contraseña debe contener al menos una letra mayúscula.';
 
     ELSIF p_nueva_contrasena !~ '[0-9]' THEN
-        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
-        VALUES (
-                   'usuario',
-                   p_id_usuario::TEXT,
-                   'UPDATE',
-                   NULL,
-                   NULL,
-                   CURRENT_USER
-               );
         RAISE EXCEPTION 'La contraseña debe contener mínimamente un número.';
     END IF;
     -- Verificar si el usuario existe
@@ -181,15 +145,6 @@ SELECT EXISTS (
 ) INTO v_user_exists;
 
 IF NOT v_user_exists THEN
-        INSERT INTO log.log_cambios(tabla, id_registro, accion, datos_antes, datos_despues, usuario_bd)
-        VALUES (
-                   'usuario',
-                   p_id_usuario::TEXT,
-                   'UPDATE',
-                   NULL,
-                   NULL,
-                   CURRENT_USER
-               );
         RAISE EXCEPTION 'Usuario no encontrado';
 END IF;
 
@@ -229,7 +184,7 @@ VALUES (
            p_id_usuario::TEXT,
            'UPDATE',
            v_datos_antes,
-           NULL,
+           '',
            CURRENT_USER
        );
 RAISE EXCEPTION 'Contraseña actual incorrecta';
@@ -347,3 +302,7 @@ BEGIN
 END;
 $$;
 
+
+
+select * from registro_parqueo;
+SELECT * FROM listar_vehiculos_por_seccion(1);
