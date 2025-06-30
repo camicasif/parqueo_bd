@@ -137,6 +137,8 @@ SELECT generar_registros_parqueo_por_rango('2024-10-01', '2024-10-31');
 -- Noviembre
 SELECT generar_registros_parqueo_por_rango('2024-11-01', '2024-11-30');
 
+SELECT generar_registros_parqueo_por_rango('2025-02-01', '2025-07-29');
+
 
 CREATE TRIGGER trg_validar_y_loggear_vehiculo_espacio
     BEFORE INSERT ON core.registro_parqueo

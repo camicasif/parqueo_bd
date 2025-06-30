@@ -10,9 +10,9 @@ SELECT * FROM vista_espacios_libres_actualmente;
 -- 4. Vehículos que ingresaron hoy
 SELECT * FROM vista_ingresos_hoy;
 
-
-select * from core.vehiculo where id_usuario = 121;
-select * from core.registro_parqueo where placa='ABC1211';
+--
+-- select * from core.vehiculo where id_usuario = 121;
+-- select * from core.registro_parqueo where placa='ABC1211';
 -- 5. Usuarios que nunca han registrado un ingreso
 SELECT * FROM vista_usuarios_sin_ingresos;
 

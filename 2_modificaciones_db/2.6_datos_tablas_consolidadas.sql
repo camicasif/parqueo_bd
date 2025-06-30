@@ -98,4 +98,3 @@ $$ LANGUAGE plpgsql;
 
 
 
-SELECT generar_registros_parqueo_por_rango_consolidada('2025-02-01', '2025-07-29');

@@ -1,23 +1,23 @@
 /************* 1. Cambiar tabla estado por enum **************/
-
-CREATE TYPE estado_espacio AS ENUM ('Disponible', 'Reservado', 'Ocupado');
-ALTER TABLE core.espacio_parqueo
-    ALTER COLUMN id_estado DROP DEFAULT,
-    DROP COLUMN id_estado,
-    ADD COLUMN estado estado_espacio NOT NULL DEFAULT 'Disponible';
-drop table config.estado_espacio_parqueo;
-
-CREATE TYPE estado_reserva AS ENUM ('pendiente', 'aprobada', 'rechazada', 'cancelada');
-
-ALTER TABLE core.reserva_espacio
-    ALTER COLUMN estado DROP DEFAULT;
-
-ALTER TABLE core.reserva_espacio
-    ALTER COLUMN estado TYPE estado_reserva
-        USING estado::estado_reserva;
-
-ALTER TABLE core.reserva_espacio
-    ALTER COLUMN estado SET DEFAULT 'pendiente';
+--
+-- CREATE TYPE estado_espacio AS ENUM ('Disponible', 'Reservado', 'Ocupado');
+-- ALTER TABLE core.espacio_parqueo
+--     ALTER COLUMN id_estado DROP DEFAULT,
+--     DROP COLUMN id_estado,
+--     ADD COLUMN estado estado_espacio NOT NULL DEFAULT 'Disponible';
+-- drop table config.estado_espacio_parqueo;
+--
+-- CREATE TYPE estado_reserva AS ENUM ('pendiente', 'aprobada', 'rechazada', 'cancelada');
+--
+-- ALTER TABLE core.reserva_espacio
+--     ALTER COLUMN estado DROP DEFAULT;
+--
+-- ALTER TABLE core.reserva_espacio
+--     ALTER COLUMN estado TYPE estado_reserva
+--         USING estado::estado_reserva;
+--
+-- ALTER TABLE core.reserva_espacio
+--     ALTER COLUMN estado SET DEFAULT 'pendiente';
 
 /************* 2. Agregar campos de auditoria ***************/
 

@@ -164,7 +164,6 @@ ORDER BY
 
 -- 9. Vehiculos con estadia prolongada
 
-select * from vista_vehiculos_estadia_prolongada;
 CREATE OR REPLACE VIEW vista_vehiculos_estadia_prolongada AS
 SELECT
     rp.placa,
