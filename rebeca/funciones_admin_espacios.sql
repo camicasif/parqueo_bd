@@ -1,5 +1,5 @@
 --ADMINISTRACION DE ESPACIOS Y PARQUEOS
---1.Registrar ingreso de un vehículo a un espacio de parqueo
+--FUNCTION:1 Registrar ingreso de un vehículo a un espacio de parqueo
 CREATE OR REPLACE FUNCTION core.registrar_ingreso_vehiculo(
     p_placa VARCHAR(7),
     p_id_espacio_parqueo INTEGER
@@ -62,7 +62,8 @@ EXCEPTION
 END;
 $$;
 
---2.Registrar la salida de un espacio parqueo
+
+--FUNCTION:2 Registrar la salida de un espacio parqueo
 CREATE OR REPLACE FUNCTION core.registrar_salida_vehiculo(
     p_id_registro INTEGER -- El ID del registro de ingreso que se desea finalizar
 )
@@ -120,9 +121,6 @@ EXCEPTION
 END;
 $$;
 
---ADMINISTRACION DE ESPACIOS Y PARQUEOS
---FUNCTION:1 Registrar ingreso de un vehículo a un espacio de parqueo
---FUNCTION:2 Registrar la salida de un espacio parqueo
 
 --FUNCTION 3: ACTUALIZAR EL ESTADO DE UN PARQUEO
 CREATE OR REPLACE FUNCTION core.actualizar_estado_espacio(
@@ -143,11 +141,6 @@ BEGIN
 
     IF NOT FOUND THEN
         RETURN 'Error: El espacio de parqueo no existe.';
-    END IF;
-
-    -- *** NUEVA VALIDACIÓN: Si el estado actual es 'DISPONIBLE' y se intenta cambiar a 'DISPONIBLE' ***
-    IF v_estado_actual = 'DISPONIBLE' AND p_nuevo_estado = 'DISPONIBLE' THEN
-        RETURN 'Error: El espacio ya está DISPONIBLE y no se puede actualizar a DISPONIBLE nuevamente.';
     END IF;
 
     -- Verificar si el estado ya es el mismo (para otros estados)
@@ -179,7 +172,7 @@ DECLARE
     v_total INTEGER := 0;
     v_seccion_existe BOOLEAN;
 BEGIN
-    -- Validar si la sección existe
+    -- Validar si la sección existe si es que por lo menos hay un subvalor en la consulta devuelve true sino false
     SELECT EXISTS (
         SELECT 1 FROM core.seccion_parqueo WHERE id_seccion = p_id_seccion
     )
@@ -236,11 +229,11 @@ BEGIN
     RETURN QUERY
     SELECT
         ep.id_espacio_parqueo,
-        ep.id_seccion AS espacio_id_seccion -- Se alias la columna para coincidir con el retorno
+        ep.id_seccion AS espacio_id_seccion
     FROM
         core.espacio_parqueo ep
     WHERE
-        ep.estado = 'Disponible' AND -- Se utiliza 'Disponible' con 'D' mayúscula según la definición del ENUM
+        ep.estado = 'Disponible' AND
         ep.id_seccion = p_id_seccion;
 
 EXCEPTION
@@ -250,4 +243,44 @@ EXCEPTION
         RETURN; -- Retorna una tabla vacía en caso de error
 END;
 $$;
+
+
+--FUNCTION 6: VERIFICAR LA DISPONIBILIDAD DE ESPACIO ANTRES DE INGRESAR
+CREATE OR REPLACE FUNCTION core.verificar_disponibilidad_espacio(
+    p_id_espacio_parqueo INTEGER
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_estado_actual estado_espacio;
+BEGIN
+    -- Verificar si el espacio existe y obtener su estado actual
+    SELECT estado
+    INTO v_estado_actual
+    FROM core.espacio_parqueo
+    WHERE id_espacio_parqueo = p_id_espacio_parqueo;
+
+    IF NOT FOUND THEN
+        RETURN 'Error: El espacio de parqueo no existe.';
+    END IF;
+
+    -- Verificar si el estado actual es 'Disponible'
+    IF v_estado_actual = 'Disponible' THEN
+        RETURN 'Disponible: El espacio ' || p_id_espacio_parqueo || ' está listo para ser ocupado.';
+    ELSE
+        RETURN 'No Disponible: El espacio ' || p_id_espacio_parqueo || ' se encuentra en estado "' || v_estado_actual || '".';
+    END IF;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Captura cualquier error inesperado durante la ejecución
+        RETURN 'Error inesperado al verificar disponibilidad del espacio ' || p_id_espacio_parqueo || ': ' || SQLERRM;
+END;
+$$;
+
+
+
+
+
 

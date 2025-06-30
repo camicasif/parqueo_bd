@@ -236,7 +236,11 @@
 
 
 --FUNCTION 9: HISTORIAL DE INGRESO  Y SALIDA POR USUARIO
+     select * from core.obtener_historial_por_usuario(10);
 --FUNCTION 10: HISTORIAL DE INGRESO POR VEHICULO. (PLACA)
+    select * from core.obtener_historial_por_vehiculo('JEF0001');
+
+
 
 
 
