@@ -55,7 +55,7 @@ ALTER TABLE config.tipo_vehiculo_seccion
 
 create type estado_espacio as enum ('Disponible', 'Reservado', 'Ocupado');
 
-alter type estado_espacio owner to parqueo_admin;
+alter type estado_espacio owner to parqueo_admin2;
 
 CREATE TABLE core.espacio_parqueo
 (
@@ -75,7 +75,7 @@ CREATE TABLE core.registro_parqueo
 
 create type estado_reserva as enum ('pendiente', 'aprobada', 'rechazada', 'cancelada');
 
-alter type estado_reserva owner to parqueo_admin;
+alter type estado_reserva owner to parqueo_admin2;
 
 
 CREATE TABLE core.reserva_espacio (

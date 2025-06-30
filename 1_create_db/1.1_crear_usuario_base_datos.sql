@@ -9,23 +9,23 @@
 ******************************************************************************/
 
 -- Crear el usuario con login, sin privilegios de superusuario ni replicación
-CREATE USER parqueo_admin WITH
+CREATE USER parqueo_admin2 WITH
 LOGIN
 NOSUPERUSER      -- No es superusuario
 NOCREATEDB       -- No puede crear bases de datos
 INHERIT
 NOREPLICATION;
 
-ALTER ROLE parqueo_admin CREATEROLE;
+ALTER ROLE parqueo_admin2 CREATEROLE;
 
 -- Asignar una contraseña segura
-ALTER USER parqueo_admin WITH PASSWORD '123456';
+ALTER USER parqueo_admin2 WITH PASSWORD '123456';
 
 -- Crear la base de datos con el usuario como dueño
-CREATE DATABASE parqueo
-    WITH OWNER = parqueo_admin
+CREATE DATABASE parqueo2
+    WITH OWNER = parqueo_admin2
     ENCODING = 'UTF8'
     CONNECTION LIMIT = 100;
 
 -- Otorgar todos los privilegios sobre la base de datos
-GRANT ALL PRIVILEGES ON DATABASE parqueo TO parqueo_admin;
+GRANT ALL PRIVILEGES ON DATABASE parqueo2 TO parqueo_admin2;

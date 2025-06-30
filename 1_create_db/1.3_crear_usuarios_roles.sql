@@ -1,18 +1,18 @@
 -- Rol para la aplicación
 CREATE ROLE app_user LOGIN PASSWORD 'tu_password_seguro';
-GRANT CONNECT ON DATABASE parqueo TO app_user;
+GRANT CONNECT ON DATABASE parqueo2 TO app_user;
 
 -- Rol para administrar configuración
 CREATE ROLE config_admin LOGIN PASSWORD 'tu_password_seguro';
-GRANT CONNECT ON DATABASE parqueo TO config_admin;
+GRANT CONNECT ON DATABASE parqueo2 TO config_admin;
 
 -- Rol solo lectura para logs
 CREATE ROLE log_reader LOGIN PASSWORD 'tu_password_seguro';
-GRANT CONNECT ON DATABASE parqueo TO log_reader;
+GRANT CONNECT ON DATABASE parqueo2 TO log_reader;
 
 -- Rol editor para core
 CREATE ROLE core_editor LOGIN PASSWORD 'tu_password_seguro';
-GRANT CONNECT ON DATABASE parqueo TO core_editor;
+GRANT CONNECT ON DATABASE parqueo2 TO core_editor;
 
 
 
