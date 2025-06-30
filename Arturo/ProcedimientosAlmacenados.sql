@@ -56,37 +56,45 @@ BEGIN
           AND id_seccion = p_id_seccion
           AND eliminado = FALSE
     ) THEN
-        SELECT 'Válido' AS resultado;
+        RAISE NOTICE 'Válido';
     ELSE
-        SELECT 'Inválido' AS resultado;
+        RAISE NOTICE 'Inválido';
     END IF;
 END;
 $$;
 
 --Listar las secciones disponibles para un tipo de vehículo específico
-CREATE OR REPLACE PROCEDURE listar_secciones_por_tipo_vehiculo(
-    IN p_id_tipo_vehiculo INT
+CREATE OR REPLACE FUNCTION listar_secciones_por_tipo_vehiculo(
+    p_id_tipo_vehiculo INT
 )
+    RETURNS TABLE (id_seccion INT, nombre_seccion varchar(50))
     LANGUAGE plpgsql
 AS
 $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM tipo_vehiculo WHERE id_tipo_vehiculo = p_id_tipo_vehiculo AND eliminado = FALSE) THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM tipo_vehiculo
+        WHERE id_tipo_vehiculo = p_id_tipo_vehiculo AND eliminado = FALSE
+    ) THEN
         RAISE EXCEPTION 'Tipo de vehículo % no existe o está eliminado', p_id_tipo_vehiculo;
     END IF;
 
-    SELECT sp.id_seccion, sp.nombre_seccion
-    FROM tipo_vehiculo_seccion tvs
-             JOIN seccion_parqueo sp ON tvs.id_seccion = sp.id_seccion
-    WHERE tvs.id_tipo_vehiculo = p_id_tipo_vehiculo AND tvs.eliminado = FALSE;
+    RETURN QUERY
+        SELECT sp.id_seccion, sp.nombre_seccion
+        FROM tipo_vehiculo_seccion tvs
+                 JOIN seccion_parqueo sp ON tvs.id_seccion = sp.id_seccion
+        WHERE tvs.id_tipo_vehiculo = p_id_tipo_vehiculo AND tvs.eliminado = FALSE;
 END;
 $$;
-
-
 --Listar los tipos de vehículos permitidos por sección
-CREATE OR REPLACE PROCEDURE listar_vehiculos_por_seccion(
-    IN p_id_seccion INT
+CREATE OR REPLACE FUNCTION listar_vehiculos_por_seccion(
+    p_id_seccion INT
 )
+    RETURNS TABLE (
+                      id_tipo_vehiculo INT,
+                      nombre_tipo_vehiculo VARCHAR
+                  )
     LANGUAGE plpgsql
 AS
 $$
@@ -95,13 +103,13 @@ BEGIN
         RAISE EXCEPTION 'Sección % no existe o está eliminada', p_id_seccion;
     END IF;
 
-    SELECT tv.id_tipo_vehiculo, tv.nombre_tipo_vehiculo
-    FROM tipo_vehiculo_seccion tvs
-             JOIN tipo_vehiculo tv ON tv.id_tipo_vehiculo = tvs.id_tipo_vehiculo
-    WHERE tvs.id_seccion = p_id_seccion AND tv.eliminado = FALSE;
+    RETURN QUERY
+        SELECT tv.id_tipo_vehiculo, tv.nombre_tipo_vehiculo
+        FROM tipo_vehiculo_seccion tvs
+                 JOIN tipo_vehiculo tv ON tv.id_tipo_vehiculo = tvs.id_tipo_vehiculo
+        WHERE tvs.id_seccion = p_id_seccion AND tv.eliminado = FALSE;
 END;
 $$;
-
 
 --Resetear la contraseña de un usuario
 CREATE OR REPLACE PROCEDURE resetear_contrasena_usuario(
@@ -248,25 +256,29 @@ BEGIN
 END;
 $$;
 
-
 --Verificar si un usuario tiene más de un vehículo registrado
-CREATE OR REPLACE PROCEDURE verificar_vehiculos_usuario(
-    IN p_id_usuario INT
-)
+CREATE OR REPLACE FUNCTION verificar_vehiculos_usuario(
+    p_id_usuario INT
+) RETURNS INTEGER
     LANGUAGE plpgsql
 AS
 $$
+DECLARE
+    v_cantidad INT;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM usuario WHERE id_usuario = p_id_usuario AND eliminado = FALSE) THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM usuario WHERE id_usuario = p_id_usuario AND eliminado = FALSE
+    ) THEN
         RAISE EXCEPTION 'Usuario % no existe o está eliminado', p_id_usuario;
     END IF;
 
-    SELECT COUNT(*) AS cantidad
+    SELECT COUNT(*) INTO v_cantidad
     FROM vehiculo
     WHERE id_usuario = p_id_usuario AND eliminado = FALSE;
+
+    RETURN v_cantidad;
 END;
 $$;
-
 
 --Reasignar un vehículo a otro usuario
 CREATE OR REPLACE PROCEDURE reasignar_vehiculo(
@@ -291,34 +303,47 @@ BEGIN
 END;
 $$;
 
-
 --Obtener información completa de un vehículo (usuario, tipo, historial)
-CREATE OR REPLACE PROCEDURE info_completa_vehiculo(
-    IN p_placa VARCHAR(7)
+CREATE OR REPLACE FUNCTION info_completa_vehiculo(
+    p_placa VARCHAR(7)
 )
+    RETURNS TABLE (
+                      placa VARCHAR(7),
+                      nombre VARCHAR(50),
+                      apellidos VARCHAR(100),
+                      nombre_tipo_vehiculo VARCHAR(50),
+                      fecha_hora_ingreso TIMESTAMP,
+                      fecha_hora_salida TIMESTAMP,
+                      id_espacio_parqueo INT,
+                      nombre_seccion VARCHAR(50)
+                  )
     LANGUAGE plpgsql
 AS
 $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM vehiculo WHERE placa = p_placa AND eliminado = FALSE) THEN
+    IF NOT EXISTS (
+        SELECT 1 FROM vehiculo v WHERE v.placa = p_placa AND v.eliminado = FALSE
+    ) THEN
         RAISE EXCEPTION 'Vehículo con placa % no existe o está eliminado', p_placa;
     END IF;
 
-    SELECT
-        v.placa,
-        u.nombre,
-        u.apellidos,
-        tv.nombre_tipo_vehiculo,
-        rp.fecha_hora_ingreso,
-        rp.fecha_hora_salida,
-        ep.id_espacio_parqueo,
-        sp.nombre_seccion
-    FROM vehiculo v
-             JOIN usuario u ON v.id_usuario = u.id_usuario
-             JOIN tipo_vehiculo tv ON v.id_tipo_vehiculo = tv.id_tipo_vehiculo
-             LEFT JOIN registro_parqueo rp ON v.placa = rp.placa
-             LEFT JOIN espacio_parqueo ep ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
-             LEFT JOIN seccion_parqueo sp ON ep.id_seccion = sp.id_seccion
-    WHERE v.placa = p_placa AND v.eliminado = FALSE;
+    RETURN QUERY
+        SELECT
+            v.placa,
+            u.nombre,
+            u.apellidos,
+            tv.nombre_tipo_vehiculo,
+            rp.fecha_hora_ingreso,
+            rp.fecha_hora_salida,
+            ep.id_espacio_parqueo,
+            sp.nombre_seccion
+        FROM vehiculo v
+                 JOIN usuario u ON v.id_usuario = u.id_usuario
+                 JOIN tipo_vehiculo tv ON v.id_tipo_vehiculo = tv.id_tipo_vehiculo
+                 LEFT JOIN registro_parqueo rp ON v.placa = rp.placa
+                 LEFT JOIN espacio_parqueo ep ON rp.id_espacio_parqueo = ep.id_espacio_parqueo
+                 LEFT JOIN seccion_parqueo sp ON ep.id_seccion = sp.id_seccion
+        WHERE v.placa = p_placa AND v.eliminado = FALSE;
 END;
 $$;
+
