@@ -45,6 +45,11 @@ BEGIN
         END IF;
     END IF;
 
+    IF v_table_name = 'core.usuario' THEN
+        v_old_data := v_old_data - 'contrasena';
+        v_new_data := v_new_data - 'contrasena';
+    END IF;
+
 
     -- Insertar en la tabla log, incluyendo el usuario_bd
     INSERT INTO log.log_cambios (tabla, accion, datos_antes, datos_despues, fecha_evento, id_registro)
