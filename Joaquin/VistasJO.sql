@@ -63,31 +63,6 @@ ORDER BY
     u.apellidos, u.nombre;
 
 
-7. Vista de Porcentaje de Ocupación Diaria por Sección
-
-CREATE OR REPLACE VIEW vista_porcentaje_ocupacion_diaria_por_seccion AS
-SELECT
-    sp.id_seccion,
-    sp.nombre_seccion,
-    DATE(rp.fecha_hora_ingreso) AS fecha,
-    COUNT(DISTINCT rp.id_espacio_parqueo) AS espacios_ocupados,
-    COUNT(DISTINCT ep.id_espacio_parqueo) AS espacios_totales,
-    ROUND((COUNT(DISTINCT rp.id_espacio_parqueo) * 100.0 / NULLIF(COUNT(DISTINCT ep.id_espacio_parqueo), 0)), 2) AS porcentaje_ocupacion
-FROM
-    core.seccion_parqueo sp
-LEFT JOIN
-    core.espacio_parqueo ep ON sp.id_seccion = ep.id_seccion AND ep.eliminado = false
-LEFT JOIN
-    core.registro_parqueo rp ON ep.id_espacio_parqueo = rp.id_espacio_parqueo
-    AND rp.eliminado = false
-    AND DATE(rp.fecha_hora_ingreso) = CURRENT_DATE
-    AND (rp.fecha_hora_salida IS NULL OR DATE(rp.fecha_hora_salida) = CURRENT_DATE)
-GROUP BY
-    sp.id_seccion, sp.nombre_seccion, DATE(rp.fecha_hora_ingreso)
-ORDER BY
-    fecha, sp.id_seccion;
-
-
 8. Vista de Conteo de Usuarios por Tipo
 
 
@@ -107,10 +82,10 @@ GROUP BY
 ORDER BY
     cantidad_usuarios DESC;
 
+9. Vehiculos con estadia prolongada
+
+
 CREATE OR REPLACE VIEW vista_vehiculos_estadia_prolongada AS
-WITH estadia_promedio AS (
-    SELECT 6.5 AS horas_promedio -- Se define el promedio manualmente
-)
 SELECT
     rp.placa,
     v.descripcion,
@@ -118,24 +93,22 @@ SELECT
     rp.fecha_hora_ingreso,
     rp.fecha_hora_salida,
     EXTRACT(EPOCH FROM (rp.fecha_hora_salida - rp.fecha_hora_ingreso)) / 3600 AS horas_estadia,
-    ep.horas_promedio AS estadia_promedio_horas,
+    6.5 AS estadia_promedio_horas,
     CASE
-        WHEN (EXTRACT(EPOCH FROM (rp.fecha_hora_salida - rp.fecha_hora_ingreso)) / 3600) > ep.horas_promedio * 1.5
-        THEN 'Estadía prolongada'
+        WHEN EXTRACT(EPOCH FROM (rp.fecha_hora_salida - rp.fecha_hora_ingreso)) / 3600 > 6.5 * 1.5
+            THEN 'Estadía prolongada'
         ELSE 'Dentro del promedio'
     END AS estado_estadia
 FROM
     core.registro_parqueo rp
 JOIN
-    core.vehiculo v ON rp.placa = v.placa AND v.eliminado = false
+    core.vehiculo v ON rp.placa = v.placa AND v.eliminado = FALSE
 JOIN
-    core.usuario u ON v.id_usuario = u.id_usuario AND u.eliminado = false
-CROSS JOIN
-    estadia_promedio ep
+    core.usuario u ON v.id_usuario = u.id_usuario AND u.eliminado = FALSE
 WHERE
     rp.fecha_hora_salida IS NOT NULL
-    AND rp.eliminado = false
-    AND (EXTRACT(EPOCH FROM (rp.fecha_hora_salida - rp.fecha_hora_ingreso)) / 3600) > ep.horas_promedio
+    AND rp.eliminado = FALSE
+    AND EXTRACT(EPOCH FROM (rp.fecha_hora_salida - rp.fecha_hora_ingreso)) / 3600 > 6.5
 ORDER BY
     horas_estadia DESC;
 
